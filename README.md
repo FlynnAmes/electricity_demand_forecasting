@@ -4,13 +4,11 @@ System to predict electricity demand an individual client, with a forecast horiz
 
 Uses electricity usage data from over 300 clients, obtainable <a href=https://archive.ics.uci.edu/dataset/321/electricityloaddiagrams20112014>here</a>.
 
-Note: This project is in progress and will be committed once a draft of a deep learning model is 
-up and running.
+Note: This project is in progress and not yet finished!!
 
 
 ## Approach so far
 
-- Rules based approaches to clean and preprocess input data
 
 - Naive baseline evaluated using demand 1 day and week prior, as well as the average usage at that time, day-of-week & month across the data
 
@@ -19,16 +17,35 @@ up and running.
 
 - XGBoost model implemented to compare to above and deep learning approaches.
 
+- Initial draft LSTM implemented in PyTorch (see notebooks/LSTM.ipynb)
+
+
+## Current limitations
+
+- cleansing of bad data performed using visual inspection - not scalable. Will replace with rules based approaches and anomaly detection techniques (e.g., isolation forest)
+
+- Normalisation performed globally rather than per-client (meaning model may focus 
+too much on differences in magnitude between clients, rather than within profile).
+Will attempt cluster based normalisation.
+
+- Use of embeddings in LSTM requires exisiting client data. No metadata available in training data to 
+create embeddings (instead learned during LSTM training). For inference with with new clients, may need to use cluster-based average for during a 'warm-up' period where initial data is collected.
+
 
 ## Next steps
 
-- Currently implementing LSTM model in PyTorch. Will compare to statistical and ML baselines. Will then implement and compare a transformer-based architecture.
+- Finish implementation of LSTM
 
-- Experiment with anomaly detection techniques (e.g., isolation forest) to identify anomalous input data, as alternative to rules based approaches.
+- Makes client data that using consistent between XGBoost and LSTM. Implement early stopping for XGBoost
 
-- For now, a global normalisation is applied in preprocessing. Switch to cluster based normalisation and check if improves performance (e.g., allowing DL models to better focus upon variations within client data 
-rather than between them). 
+- Tune hyperparameters of models via Optuna
+
+- Cluster based normalisation.
 
 - Evaluate performance within clusters rather than globally (to identify which clients get best/worst performance, to inform future improvements)
+
+- Evaluate performance and produce graphs of time series. 
+
+- Implement transformer based forecasting model and compare to existing models.
 
 - Decide upon the model to use in production. Implement automated testing, containerisation, API and logging of inferences.
