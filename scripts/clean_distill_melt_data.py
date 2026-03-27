@@ -25,13 +25,14 @@ def clean_distill_melt_data():
     # 347 has constant usage at all times, then dissapearing for year before coming back etc.
     # 332 has a instantaneuos 10x magnitude jump shift midway through data that looks like instrument change/issue
     # 001 also has two changepoints
+    # 015 has huge absence of data part way through the sequence
     #  #TODO  handle this columns more gracefully (e.g., imputation, 
     # keeping of ealier data)
     # #TODO use proper arules for automatic cleansing (as want to make scalable)!
     # e.g., certain instances of zero energy usage, anomaly detection techniques, (e.g., isolation forest),
     # CUSUM for changepoints
     df.drop(columns=['MT_196', 'MT_362', 'MT_279', 'MT_093', 'MT_223', 'MT_003', 'MT_332', 'MT_347', 
-                     'MT_001', 'MT_131'], inplace=True)
+                     'MT_001', 'MT_131', 'MT_015'], inplace=True)
 
     # rename first column to datetime
     df.rename(columns={'Unnamed: 0': 'datetime'}, inplace=True)

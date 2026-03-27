@@ -5,8 +5,8 @@ import pandas as pd
 import numpy as np
 import pickle as pkl
 import yaml
-from paths import DATA_PATH, CONFIG_PATH
-
+from paths import DATA_PATH, CONFIG_PATH, LOGS_PATH
+import json
 
 
 def engineer_features():
@@ -17,28 +17,51 @@ def engineer_features():
 
     # get config params
     train_size = config['train_size']
+    validation_size = config['validation_size']
+    test_size = config['test_size']
+    num_clients_train = config['num_clients_train']
+    random_seed = config['random_seed']
 
     # load in the data
     df = pd.read_csv(str(DATA_PATH / 'processed' / 'hourly_usage_cleaned.csv'))
 
     # set datetime and client id as the index, but sort by datetime (for later timeseries split in sklearn)
     df.set_index(['client_id', 'datetime'], inplace=True)
-    df.sort_index(level='datetime', inplace=True)
-
 
     ##########
-    # create new features (grouping by client id!)
+    # create new features (for all models)
     ##########
+
+    # extract the datetimes
+    datetimes = pd.to_datetime(df.index.get_level_values('datetime'))
+
+    # cyclical time features - used in both tabular and sequence models
+    df['hour_sin'] = np.sin(2*np.pi*datetimes.hour/24)
+    df['hour_cos'] = np.cos(2*np.pi*datetimes.hour/24)
+
+    # day of week (for diurnal)
+    df['day_sin'] = np.sin(2*np.pi*datetimes.dayofweek/7)
+    df['day_cos'] = np.cos(2*np.pi*datetimes.dayofweek/7)
+    
+    # month (for seasonal)
+    df['month_sin'] = np.sin(2*np.pi*datetimes.month/12)
+    df['month_cos'] = np.cos(2*np.pi*datetimes.month/12)
+
+    print('\n cyclical time features encoded')
+
+    ##############
+    # now create additional features (for tabular models will drop these for sequence models)
+    ##############
 
     # create lagged features
-    df['1hr_lag'] = df.groupby(level='client_id')['hourly_usage_kwh'].shift(1)
+    df['lag_1hr'] = df.groupby(level='client_id')['hourly_usage_kwh'].shift(1)
     df['lag_2hr'] = df.groupby(level='client_id')['hourly_usage_kwh'].shift(2)
     df['lag_6hr'] = df.groupby(level='client_id')['hourly_usage_kwh'].shift(6)
     df['lag_1dy'] = df.groupby(level='client_id')['hourly_usage_kwh'].shift(24)
     df['lag_1wk'] = df.groupby(level='client_id')['hourly_usage_kwh'].shift(7*24)
 
     # get rolling mean features
-    df['1dy_roll_mean'] = df.groupby(level='client_id')['hourly_usage_kwh'].transform(lambda x: x.rolling(window=24).mean())
+    df['rolling_mean_1dy'] = df.groupby(level='client_id')['hourly_usage_kwh'].transform(lambda x: x.rolling(window=24).mean())
     df['rolling_mean_1wk'] = df.groupby(level='client_id')['hourly_usage_kwh'].transform(lambda x: x.rolling(window=24*7).mean())
 
     # get the rolling max, min and standard deviation (for volatility)
@@ -51,63 +74,111 @@ def engineer_features():
     df['rolling_std_1dy'] = df.groupby(level='client_id')['hourly_usage_kwh'].transform(lambda x: x.rolling(window=24).std())
     df['rolling_std_1wk'] = df.groupby(level='client_id')['hourly_usage_kwh'].transform(lambda x: x.rolling(window=24*7).std())
 
-    # and now get features for the hour, day of week and month. using cyclical encoding, 
-    df['hour'] = np.sin(2*np.pi*pd.to_datetime(df.index.get_level_values('datetime')).hour/24)
-    df['day_of_week'] = np.sin(2*np.pi*pd.to_datetime(df.index.get_level_values('datetime')).dayofweek/7)
-    df['month'] = np.sin(2*np.pi*pd.to_datetime(df.index.get_level_values('datetime')).month/12)
-
-    # remove nans where no feature
-    df.dropna(inplace=True)
-
     print('\n new features created')
 
     #############
-    # split data in time
+    # get cutoff dates for time split
     ############
 
-    # first get timestamps for start and end time
-    start_date = pd.to_datetime(df.index.get_level_values('datetime')).min()
-    end_date = pd.to_datetime(df.index.get_level_values('datetime')).max()
+    # split data into train, validation and holdout test, with 70, 10, 20 split
+    min_date = datetimes.min()
+    max_date = datetimes.max()
 
-    # then the total time elapsed timedelta
-    tot_time_elasped = end_date - start_date
+    # cutoff date where validation data begins. NOTE that proportion in training will be 
+    # slihgtly smaller than specified proportion because many clients don't have data for first year
+    validation_cutoff = min_date + train_size*(max_date - min_date)
+    # cutoff date where test data begins
+    test_cutoff = min_date + (train_size + validation_size)*(max_date - min_date)
 
-    # multiply by train proportion and add to start date to get cutoff point
-    cutoff_date = start_date + tot_time_elasped*train_size
+    # split df into train, validate and test
+    df_train = df[datetimes < validation_cutoff]
+    df_validate = df[(datetimes > validation_cutoff) & (datetimes < test_cutoff)]
+    df_test = df[datetimes > test_cutoff]
 
-    # now use cutoff data to filter for test and train
-    df_train = df[pd.to_datetime(df.index.get_level_values('datetime')) < cutoff_date]
-    df_test = df[pd.to_datetime(df.index.get_level_values('datetime')) > cutoff_date]
+    print('\n shape of train: ', df_train.shape)
+    print('shape of validate: ', df_validate.shape)
+    print('shape of test: ', df_test.shape)
 
-    print('\n train shape: ', df_train.shape)
-    print('\n test shape: ', df_test.shape)
+    ##########
+    # extract random subset of clients to manage compute
+    #########
 
-    # now split into target and features
-    y_train = df_train['hourly_usage_kwh']
-    y_validate = df_test['hourly_usage_kwh']
+    # get client ids in all rows in train, validation and test periods
+    client_ids_train = df_train.index.get_level_values('client_id')
+    client_ids_validate = df_validate.index.get_level_values('client_id')
+    client_ids_test = df_test.index.get_level_values('client_id')
 
-    X_train = df_train.drop(columns=['hourly_usage_kwh'])
-    X_validate = df_test.drop(columns=['hourly_usage_kwh'])
+    # create a list of client ids that are in all training, testing and validation (train misses some that are in validate/test)
+    client_ids_in_all_data = client_ids_train.intersection(client_ids_validate).intersection(client_ids_test)
 
-    print('\n data split')
+    # create random number generator with seed
+    rng = np.random.default_rng(seed=random_seed)
+    random_client_subset = np.sort(rng.choice(client_ids_in_all_data, size=num_clients_train, replace=False))
 
-    ###############
-    # save processed data
-    ###############
+    # filter so only including random client subset
+    df_train_filtered = df_train[client_ids_train.isin(random_client_subset)]
+    df_validate_filtered = df_validate[client_ids_validate.isin(random_client_subset)]
+    df_test_filtered = df_test[client_ids_test.isin(random_client_subset)]
 
-    with open(DATA_PATH / 'processed' / 'X_train.pkl', 'wb') as f:
-        pkl.dump(X_train, f)
+    print('\n shape of train after filter: ', df_train_filtered.shape)
+    print('shape of validate after filter: ', df_validate_filtered.shape)
+    print('shape of test after filter: ', df_test_filtered.shape)
 
-    with open(DATA_PATH / 'processed' /  'y_train.pkl', 'wb') as f:
-        pkl.dump(y_train, f)
+    print('\n random subset of clients extracted')
 
-    with open(DATA_PATH / 'processed' / 'X_validate.pkl', 'wb') as f:
-        pkl.dump(X_validate, f)
+    # log subset of clients used
+    with open(LOGS_PATH / 'model_development' / 'clients_used_training.json', 'w') as f:
+        json.dump(list(df_train_filtered.index.get_level_values('client_id').unique()), f , indent=4)
 
-    with open(DATA_PATH / 'processed' / 'y_validate.pkl', 'wb') as f:
-        pkl.dump(y_validate, f)
+    ################
+    # now drop lagged/rolled feature columns for sequential data
+    ################
 
-    print('\n processed data saved')
+    lag_roll_feat_cols = df.columns.difference(set(('hourly_usage_kwh', 'hour_sin', 'hour_cos', 'day_sin', 'day_cos', 'month_sin', 'month_cos')))
+    
+    df_seq_train = df_train_filtered.drop(columns=lag_roll_feat_cols)
+    df_seq_validate = df_validate_filtered.drop(columns=lag_roll_feat_cols)
+    df_seq_test = df_test_filtered.drop(columns=lag_roll_feat_cols)
+
+    print('\n cols in sequential: ', df_seq_train.columns)
+
+    #  # and save the sequential models
+    # df_seq_train.to_csv(DATA_PATH / 'processed' / 'df_seq_train.csv')
+    # df_seq_validate.to_csv(DATA_PATH / 'processed' / 'df_seq_validate.csv')
+    # df_seq_test.to_csv(DATA_PATH / 'processed' / 'df_seq_test.csv')
+
+    # and save the sequential models
+    with open(DATA_PATH / 'processed' / 'df_seq_train.pkl', 'wb') as f:
+        pkl.dump(df_seq_train, f)
+
+    with open(DATA_PATH / 'processed' / 'df_seq_validate.pkl', 'wb') as f:
+        pkl.dump(df_seq_validate, f)
+     
+    with open(DATA_PATH / 'processed' / 'df_seq_test.pkl', 'wb') as f:
+        pkl.dump(df_seq_test, f)
+
+    print('\n engineered sequential model data saved')
+
+    # for tabular models, first drop columns where rolled/lag cannot be computed. 
+    df_train_filtered.dropna(inplace=True)
+    df_validate_filtered.dropna(inplace=True)
+    df_test_filtered.dropna(inplace=True)
+
+    # # and then save for tabular data
+    # df_train_filtered.to_csv(DATA_PATH / 'processed' / 'df_tabular_train.csv')
+    # df_validate_filtered.to_csv(DATA_PATH / 'processed' / 'df_tabular_validate.csv')
+    # df_test_filtered.to_csv(DATA_PATH / 'processed' / 'df_tabular_test.csv')
+
+    with open(DATA_PATH / 'processed' / 'df_tabular_train.pkl', 'wb') as f:
+        pkl.dump(df_train_filtered, f)
+
+    with open(DATA_PATH / 'processed' / 'df_tabular_validate.pkl', 'wb') as f:
+        pkl.dump(df_validate_filtered, f)
+    
+    with open(DATA_PATH / 'processed' / 'df_tabular_test.pkl', 'wb') as f:
+        pkl.dump(df_test_filtered, f)
+
+    print('\n engineered data for tabular models saved')
 
 
 if __name__ == '__main__':
