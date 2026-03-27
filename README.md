@@ -1,23 +1,19 @@
 ## Overwiew
 
-System to predict electricity demand an individual client, with a forecast horizon of 24 hours, and a context window of 1 week.
+System to predict multi-client electricity demand, with a forecast horizon of 24 hours, and a context window of 1 week.
 
 Uses electricity usage data from over 300 clients, obtainable <a href=https://archive.ics.uci.edu/dataset/321/electricityloaddiagrams20112014>here</a>.
 
-Note: This project is in progress and not yet finished!!
+Note: This project is in progress and not yet finished.
 
 
 ## Approach so far
 
+- Naive baseline evaluated using demand 1 day and week prior, as well as the average usage at that time, day-of-week across the data
 
-- Naive baseline evaluated using demand 1 day and week prior, as well as the average usage at that time, day-of-week & month across the data
+- OLS and Lasso regression models, along with XGBoost, implemented and evaluated to benchmark deep learning approach with linear and tree based models.
 
-- Multiple linear regression and elastic-net regression models created and evaluated to identify feature 
-(lagged, rolling statistics as well as temporal features) importance. Performance evaluated using normalised root mean squared error.
-
-- XGBoost model implemented to compare to above and deep learning approaches.
-
-- Initial draft LSTM implemented in PyTorch (see notebooks/LSTM.ipynb)
+- LSTM implemented and evaluated, with and without learned embeddings to capture cross client variation
 
 
 ## Current limitations
@@ -28,24 +24,17 @@ Note: This project is in progress and not yet finished!!
 too much on differences in magnitude between clients, rather than within profile).
 Will attempt cluster based normalisation.
 
-- Use of embeddings in LSTM requires exisiting client data. No metadata available in training data to 
-create embeddings (instead learned during LSTM training). For inference with with new clients, may need to use cluster-based average for during a 'warm-up' period where initial data is collected.
-
 
 ## Next steps
 
-- Finish implementation of LSTM
+- Normalise per client rather than globally
 
-- Makes client data that using consistent between XGBoost and LSTM. Implement early stopping for XGBoost
+- Evaluate performance across client clusters (not just globally) to identify for which clients models perform well/not well
 
-- Tune hyperparameters of models via Optuna
+- Hyperparameter tuning with Optuna
 
-- Cluster based normalisation.
+- Rule based approaches/anomaly detection for data cleansing, to improve scalability
 
-- Evaluate performance within clusters rather than globally (to identify which clients get best/worst performance, to inform future improvements)
-
-- Evaluate performance and produce graphs of time series. 
-
-- Implement transformer based forecasting model and compare to existing models.
+- Implement one more deep learning model (transformer-based) to compare vs LSTM and existing models.
 
 - Decide upon the model to use in production. Implement automated testing, containerisation, API and logging of inferences.
