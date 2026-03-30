@@ -9,25 +9,21 @@ Note: This project is in progress and not yet finished.
 
 ## Approach so far
 
-- Naive baseline evaluated using demand 1 day and week prior, as well as the average usage at that time, day-of-week across the data
+- Naive baseline evaluated using demand 1 day and week prior, as well as the average usage at that time, day-of-week across the data.
 
-- OLS and Lasso regression models, along with XGBoost, implemented and evaluated to benchmark deep learning approach with linear and tree based models.
+- OLS and Lasso regression models, along with XGBoost, implemented and evaluated to benchmark deep learning approach with linear and tree based models. Using Lagged and rolled features, normalised on a per-client basis (rather than globally, to ensure models focus upon variation within client profiles, rather than clients with 
+the largest magnitude usage)
 
-- LSTM implemented and evaluated, with and without learned embeddings to capture cross client variation
+- Deep learning sequential model (LSTM) implemented and evaluated.
 
 
 ## Current limitations
 
 - cleansing of bad data performed using visual inspection - not scalable. Will replace with rules based approaches and anomaly detection techniques (e.g., isolation forest)
 
-- Normalisation performed globally rather than per-client (meaning model may focus 
-too much on differences in magnitude between clients, rather than within profile).
-Will attempt cluster based normalisation.
-
+- code is in notebooks and not yet productionised.
 
 ## Next steps
-
-- Normalise per client rather than globally
 
 - Evaluate performance across client clusters (not just globally) to identify for which clients models perform well/not well
 
