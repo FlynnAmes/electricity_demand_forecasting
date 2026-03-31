@@ -128,7 +128,7 @@ def evaluate_models():
                         }
 
         # log summary stats
-        log_stats(model_name=model_name, nrmse_summary_dict=summary_dict, nrmse_per_client=nrmse_per_client, df_preds=df_preds)
+        log_stats(model_name=model_name, nrmse_summary_dict=summary_dict, nrmse_per_client=nrmse_per_client, df_preds=df_preds_unscaled)
 
         print(f'\n {model_name} predictions and performance metrics logged')
 

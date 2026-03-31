@@ -69,8 +69,10 @@ XGBoost         | 0.08       | 0.46      | 0.02
 
 <br>
 
-Tree-based and linear models currently outpeform the deep learning model. This may be because the problem
-is dominated by autocorrelation, which the linear models can handle well (note Lasso drives all terms but the 1hr, 1dy and 1wk lag to zero).
+Tree-based and linear models currently outpeform the deep learning model. This is because the problem
+is predominantly autoregressive. Linear models accounting for lag features can handle an autoregressive problem well (e.g., note in the Lasso implementation here, the only with coeffs not driven to zero are 1hr, 1dy and 1wk lag usages. Note similar performance to XGBoost).
+
+A small subset of clients drive a large portion of the nrmse
 
 
 ## Next steps

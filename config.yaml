@@ -20,7 +20,7 @@ XGBoost_params:
   early_stop_rounds: 10
 
 LSTM_params:
-  seq_length: 128
+  seq_length: 168
   batch_size: 32
   train_stride_low: 13
   train_stride_high: 23

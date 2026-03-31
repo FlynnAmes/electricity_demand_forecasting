@@ -84,76 +84,96 @@ def train_LSTM():
     ###########
     # main training loop
     ###########
+    try:
+        # first loop over epochs
+        for epoch in range(EPOCHS):
 
-    # first loop over epochs
-    for epoch in range(EPOCHS):
-
-        print(f'\n starting epoch {epoch}')
-        losses_train = []
-        model.train()
-        
-        for batch_idx, (X_seqs, labels, client_ids) in enumerate(dataloader_train):
-
-            # do forwards pass
-            predictions = model(X_seqs)
-
-            # compute loss
-            loss = criterion(predictions, labels)
-            loss.backward()
-
-            # step forwards
-            optimiser.step()
-            optimiser.zero_grad()
-        
-            # append batch training loss to list
-            with torch.no_grad():
-                losses_train.append(loss.item())
-
-        print(f'training at epoch {epoch} completed')
-        
-        with torch.no_grad():
-            # after training completed, append batch-averaged training loss to list
-            convergence_tracker.training_losses.append(np.mean(losses_train))
-
-        # at every other epoch
-        if epoch % 2 == 0:
+            print(f'\n starting epoch {epoch}')
+            losses_train = []
+            model.train()
             
-            # list of losses which will average over (reset at each validation loop)
-            losses_val = []
-            # at end of epoch, now evaluate the validation loss
-            model.eval()
+            for batch_idx, (X_seqs, labels, _) in enumerate(dataloader_train):
+
+                # do forwards pass
+                predictions = model(X_seqs)
+
+                # compute loss
+                loss = criterion(predictions, labels)
+                loss.backward()
+
+                # step forwards
+                optimiser.step()
+                optimiser.zero_grad()
+            
+                # append batch training loss to list
+                with torch.no_grad():
+                    losses_train.append(loss.item())
+
+            print(f'training at epoch {epoch} completed')
+            
             with torch.no_grad():
-                for batch_idx, (X_seqs_val, labels_val, _) in enumerate(dataloader_validate):
+                # after training completed, append batch-averaged training loss to list
+                convergence_tracker.training_losses.append(np.mean(losses_train))
 
-                    preds_val = model(X_seqs_val)
-                    losses_val.append(criterion(preds_val, labels_val).item())
+            # at every other epoch
+            if epoch % 2 == 0:
                 
-                # after going through batches average loss across them
-                losses_val_average = np.mean(losses_val)
+                # list of losses which will average over (reset at each validation loop)
+                losses_val = []
+                # at end of epoch, now evaluate the validation loss
+                model.eval()
+                with torch.no_grad():
+                    for batch_idx, (X_seqs_val, labels_val, _) in enumerate(dataloader_validate):
 
-                # and evaluate early stopping
-                convergence_tracker.check_early_stop(val_loss=losses_val_average, epoch=epoch, model_state_dict=model.state_dict())
-
-                # if time to stop then do so and restore best performing weights and biases
-                if convergence_tracker.stop_training is True:
-                    print(f'early stopping criterion reached at {epoch} epochs. restoring to weights and biases at {convergence_tracker.prev_dec_epoch} epochs')
-
-                    # model.load_state_dict(early_stop_checker.best_model)
-                    model.load_state_dict(convergence_tracker.prev_dec_model)
-
-                    # and save the mode state dictionary
-                    with open(MODELS_PATH / 'LSTM.pkl', 'wb') as f:
-                        pkl.dump(convergence_tracker.prev_dec_model, f)
+                        preds_val = model(X_seqs_val)
+                        losses_val.append(criterion(preds_val, labels_val).item())
                     
-                    # then end training
-                    break
-                    
-                # append average loss to its own list for plotting later
-                convergence_tracker.validation_losses.append(losses_val_average)
+                    # after going through batches average loss across them
+                    losses_val_average = np.mean(losses_val)
 
-        if epoch % 5 == 0:
-            convergence_tracker.plot_losses(show_figure=False, save_figure=True, 
-                                            save_path=BASE_PATH / 'plots')
+                    # and evaluate early stopping
+                    convergence_tracker.check_early_stop(val_loss=losses_val_average, epoch=epoch, model_state_dict=model.state_dict())
+
+                    # if time to stop then do so and restore best performing weights and biases
+                    if convergence_tracker.stop_training is True:
+                        print(f'early stopping criterion reached at {epoch} epochs. restoring to weights and biases at {convergence_tracker.prev_dec_epoch} epochs')
+
+                        # model.load_state_dict(early_stop_checker.best_model)
+                        model.load_state_dict(convergence_tracker.prev_dec_model)
+
+                        # and save the mode state dictionary
+                        with open(MODELS_PATH / 'LSTM.pkl', 'wb') as f:
+                            pkl.dump(convergence_tracker.prev_dec_model, f)
+                        
+                        # then end training
+                        break
+                        
+                    # append average loss to its own list for plotting later
+                    convergence_tracker.validation_losses.append(losses_val_average)
+
+            if epoch % 5 == 0:
+                # for every 5th epoch, plot losses
+                convergence_tracker.plot_losses(show_figure=False, save_figure=True, 
+                                                save_path=BASE_PATH / 'plots')
+                # and save model checkpoint
+                with open(MODELS_PATH / 'checkpoints' / 'LSTM_checkpoint.pkl', 'wb') as f:
+                    pkl.dump(model.state_dict(), f)
+                
+
+    # catch keyboard interupt
+    except KeyboardInterrupt:
+        print('training interupted by user')
+    
+    # catch any other error
+    except Exception as e:
+        print(f'training failed with error: \n {e}')
+        raise
+    
+    # always save a model checkpoint erroring or not
+    finally:
+        with open(MODELS_PATH / 'checkpoints' / 'LSTM_checkpoint.pkl', 'wb') as f:
+            pkl.dump(model.state_dict(), f)
+            print('model checkpoint saved')
 
 
 if __name__ == '__main__':
