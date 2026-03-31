@@ -34,7 +34,6 @@ System to predict multi-client electricity demand, with a forecast horizon of 24
 The electricity usage data (for over 300 clients) is obtainable <a href=https://archive.ics.uci.edu/dataset/321/electricityloaddiagrams20112014>here</a>.
 
 
-
 ## Approach so far
 
 - Naive baseline evaluated using lagged usage from prior hour and week. 
@@ -68,7 +67,9 @@ XGBoost         | 0.08       | 0.46      | 0.02
 ────────────────────────────────────────────────────
 ```
 
-- Tree-based and linear models currently outpeform the deep learning model. This may be because the problem
+<br>
+
+Tree-based and linear models currently outpeform the deep learning model. This may be because the problem
 is dominated by autocorrelation, which the linear models can handle well (note Lasso drives all terms but the 1hr, 1dy and 1wk lag to zero).
 
 
