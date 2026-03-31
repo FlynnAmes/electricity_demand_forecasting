@@ -8,11 +8,10 @@ import yaml
 from paths import DATA_PATH, CONFIG_PATH, LOGS_PATH
 import json
 
-#TODO: seperate out into more modular functions
 
 
 def standardise_per_client(group, dict_with_mean_and_std):
-    """ standardise hourly usahe data using mean and standard deviation for each client """
+    """ standardise hourly usage data using mean and standard deviation for each client """
 
     # get client id of a group (assumed the same within group)
     client_id = int(np.unique(group.index.get_level_values('client_id'))[0])

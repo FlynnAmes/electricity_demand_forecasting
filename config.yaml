@@ -5,3 +5,14 @@ random_seed: 42
 training_loss: 'mean_squared_error'
 num_clients_train: 100
 random_seed: 42
+Lasso_params:
+  alpha: 0.1
+XGBoost_params:
+  learning_rate: 0.1
+  n_estimators: 200
+  max_depth: 6
+  min_child_weight: 3
+  subsample: 0.75
+  colsample_bytree: 0.75
+  lambda: 1.0
+  early_stop_rounds: 10
