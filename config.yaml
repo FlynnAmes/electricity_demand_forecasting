@@ -27,8 +27,8 @@ LSTM_params:
   validate_stride: 12
   test_stride: 1
   hidden_size: 10
-  learning_rate: 1e-5
-  weight_decay: 1e-3
+  learning_rate: 1.0e-5
+  weight_decay: 1.0e-3
   epochs: 50
   patience: 5
-  delta: 1e-3
+  delta: 1.0e-3
