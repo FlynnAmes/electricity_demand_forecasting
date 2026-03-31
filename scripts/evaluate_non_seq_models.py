@@ -71,7 +71,10 @@ def evaluate_models():
 
     # loop through each saved model, as well as two naive models, which just use features already computed
     for path_name in glob(str(MODELS_PATH/ '*')) + ['naive_1hr', 'naive_1wk']:
-
+        
+        # if model is LSTM then skip as evaluation dealt with seperately
+        if 'LSTM' in path_name:
+            continue
         # if model is naive, do nothing, otherwise load in model from path  
         if 'naive' in path_name:
             model_name = path_name
@@ -88,7 +91,7 @@ def evaluate_models():
             y_pred = X_test['lag_1hr']
         elif model_name == 'naive_1wk':
             # using usage from week prior
-            y_pred = X_test['lag_1hr']
+            y_pred = X_test['lag_1wk']
         else:
             # otherwise if not naive, fit the model using test data
             y_pred = model.predict(X_test)

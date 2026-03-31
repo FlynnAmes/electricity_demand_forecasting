@@ -38,7 +38,6 @@ def engineer_features():
     # set datetime and client id as the index, but sort by datetime (for later timeseries split in sklearn)
     df.set_index(['client_id', 'datetime'], inplace=True)
 
-
     #############
     # get cutoff dates for time split
     ############

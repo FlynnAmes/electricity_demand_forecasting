@@ -36,13 +36,12 @@ def log_stats(model_name: str, nrmse_per_client, nrmse_summary_dict, preds_dict)
 
     with open(save_path / 'nrmse_per_client.json', 'w') as f:
         # convert to list so serialisable
-        json.dump(nrmse_per_client.to_list(), f, indent=4)
+        json.dump(nrmse_per_client, f, indent=4)
     
     # save predictions (only) for further evaluation/visualisation (also gives client ids used)
     os.makedirs(DATA_PATH / 'processed', exist_ok=True)
     with open(DATA_PATH / 'processed' / f'{model_name}_preds_dict.pkl', 'wb') as f:
         pkl.dump(preds_dict, f)
-
 
 
 def evaluate_LSTM():
@@ -91,10 +90,12 @@ def evaluate_LSTM():
         model_state_dict = pkl.load(f)
         model.load_state_dict(model_state_dict)
 
+    print('\n model loaded')
+
     ##########
     # set up dataset and dataloader
     ##########
-    
+
     dataset_test = SeqExtractionDataSet(data_dict=data_dict, idx_map=idx_map, SEQ_LENGTH=SEQ_LENGTH)
     # don't shuffle the testing data
     dataloader_test = DataLoader(dataset_test, batch_size=BATCH_SIZE, shuffle=False, drop_last=False)
@@ -142,6 +143,7 @@ def evaluate_LSTM():
         else:
             raise Exception(f'incompatible number of client ids within the batch, totalling {len(clients_ids_test_unique)}')
 
+    print('\n predictions obtained')
 
     # for each client, get scaled labels and predictions (using their mean and std usage)
     preds_dict_unscaled = {client_id: np.array(preds_dict[client_id]) * 

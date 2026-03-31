@@ -13,7 +13,6 @@ def clean_distill_melt_data():
 
     print('shape before removing bad clients:', df.shape)
 
-
     ############
     # dropping bad columns
     ############

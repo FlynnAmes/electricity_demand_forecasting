@@ -2,35 +2,80 @@
 
 System to predict multi-client electricity demand, with a forecast horizon of 24 hours, and a context window of 1 week.
 
-Uses electricity usage data from over 300 clients, obtainable <a href=https://archive.ics.uci.edu/dataset/321/electricityloaddiagrams20112014>here</a>.
+## Repository Structure
 
-Note: This project is in progress and not yet finished.
+```
+├── data/
+│   ├── processed/
+│   └── raw/   
+│  
+├── logs/                          # training and evaluation logs (gitignored)
+├── models/                        # trained model artifacts (gitignored)
+├── notebooks/                     # exploratory analysis/model creation
+│
+├── scripts/                       # training and evaluation code
+│   ├── classes.py
+│   ├── paths.py
+│   ├── clean_data.py
+│   ├── prep_features.py
+│   ├── prep_sequential.py
+│   ├── train_non_seq_models.py
+│   ├── train_LSTM.py
+│   ├── evaluate_non_seq_models.py
+│   └── evaluate_LSTM.py
+│   
+├── config.yml
+├── .gitignore
+└──  README.md
+```
+
+## Data ##
+
+The electricity usage data (for over 300 clients) is obtainable <a href=https://archive.ics.uci.edu/dataset/321/electricityloaddiagrams20112014>here</a>.
+
 
 
 ## Approach so far
 
-- Naive baseline evaluated using demand 1 day and week prior, as well as the average usage at that time, day-of-week across the data.
+- Naive baseline evaluated using lagged usage from prior hour and week. 
 
-- OLS and Lasso regression models, along with XGBoost, implemented and evaluated to benchmark deep learning approach with linear and tree based models. Using Lagged and rolled features, normalised on a per-client basis (rather than globally, to ensure models focus upon variation within client profiles, rather than clients with 
-the largest magnitude usage)
+- Linear models (OLS and Lasso), tree-based (XGBoost) and deep learning sequential (LSTM) models trained  evaluated
 
-- Deep learning sequential model (LSTM) implemented and evaluated.
+- Per client-normalisation upon input data, to ensure model pays equal attention to residential and industrial clients (whose magnitdue can be an order of magnitude different).
+
+- Cyclical encoding of time features. Linear and tree-based models also use lagged and rolling statistics
+
+- Evaluation performed using client-mean-normalised rmse
 
 
-## Current limitations
+## Results (preliminary) ##
 
-- cleansing of bad data performed using visual inspection - not scalable. Will replace with rules based approaches and anomaly detection techniques (e.g., isolation forest)
+Client-mean normalised root mean square error (NRMSE) summary stats:
 
-- code is in notebooks and not yet productionised.
+```
+────────────────────────────────────────────────────
+MODEL           | mean NRMSE | max NRMSE | min NRMSE
+────────────────────────────────────────────────────
+Naive 1wk lag   | 0.15       | 0.66      | 0.04
+── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── 
+LSTM            | 0.12       | 0.72      | 0.02
+── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── 
+Lasso           | 0.11       | 0.65      | 0.02
+── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── 
+OLS             | 0.10       | 0.67      | 0.02
+── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── 
+XGBoost         | 0.08       | 0.46      | 0.02
+────────────────────────────────────────────────────
+```
+
+- Tree-based and linear models currently outpeform the deep learning model. This may be because the problem
+is dominated by autocorrelation, which the linear models can handle well (note Lasso drives all terms but the 1hr, 1dy and 1wk lag to zero).
+
 
 ## Next steps
 
-- Evaluate performance across client clusters (not just globally) to identify for which clients models perform well/not well
+- Rule based approaches/anomaly detection for data cleansing, to improve scalability
 
 - Hyperparameter tuning with Optuna
 
-- Rule based approaches/anomaly detection for data cleansing, to improve scalability
-
-- Implement one more deep learning model (transformer-based) to compare vs LSTM and existing models.
-
-- Decide upon the model to use in production. Implement automated testing, containerisation, API and logging of inferences.
+- Multi-timestep prediction
