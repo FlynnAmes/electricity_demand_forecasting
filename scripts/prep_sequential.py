@@ -1,7 +1,6 @@
 """ prepare data for sequential models, creating dictionaries with data per client, along with 
 index map giving all possible combinations of client id and starting index for a given sequence length """
 
-import pandas as pd
 import torch
 import pickle as pkl
 import numpy as np

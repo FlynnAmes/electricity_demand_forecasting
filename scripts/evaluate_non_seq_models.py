@@ -5,7 +5,7 @@ import pickle as pkl
 from sklearn.metrics import root_mean_squared_error
 import numpy as np
 import json
-from paths import DATA_PATH, MODELS_PATH, CONFIG_PATH, LOGS_PATH
+from paths import DATA_PATH, MODELS_PATH, LOGS_PATH
 from glob import glob
 from pathlib import Path
 import os
@@ -37,7 +37,7 @@ def log_stats(model_name: str, nrmse_per_client, nrmse_summary_dict, df_preds):
     
     # save predictions (only) for further evaluation/visualisation (also gives client ids used)
     os.makedirs(DATA_PATH / 'processed', exist_ok=True)
-    with open(DATA_PATH / 'processed' / f'{model_name}_preds.csv', 'wb') as f:
+    with open(DATA_PATH / 'processed' / f'{model_name}_preds.pkl', 'wb') as f:
         pkl.dump(df_preds, f)
 
 
