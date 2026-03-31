@@ -5,8 +5,10 @@ random_seed: 42
 training_loss: 'mean_squared_error'
 num_clients_train: 100
 random_seed: 42
+
 Lasso_params:
   alpha: 0.1
+
 XGBoost_params:
   learning_rate: 0.1
   n_estimators: 200
@@ -16,3 +18,17 @@ XGBoost_params:
   colsample_bytree: 0.75
   lambda: 1.0
   early_stop_rounds: 10
+
+LSTM_params:
+  seq_length: 128
+  batch_size: 32
+  train_stride_low: 13
+  train_stride_high: 23
+  validate_stride: 12
+  test_stride: 1
+  hidden_size: 10
+  learning_rate: 1e-5
+  weight_decay: 1e-3
+  epochs: 50
+  patience: 5
+  delta: 1e-3

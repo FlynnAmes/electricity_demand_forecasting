@@ -150,15 +150,13 @@ def engineer_features():
     # use to standardise mean usages (using training data only!)
     scaled_mean_client_usage = (df_mean_std_usage['mean'] - mean_of_mean_usages)/std_of_mean_usages
 
-    print('\n pre merge: ', df_standardised.head())
+ 
     # make this an additional feature to the df. reste and reassign index so that maintain datetime there
     df_standardised = pd.merge(df_standardised.reset_index(), scaled_mean_client_usage, how='left', on=['client_id'])
     # rename merged column
     df_standardised.rename(columns={'mean': 'mean_usage'}, inplace=True)
     # and reassign client id and datetime to index
     df_standardised.set_index(['client_id', 'datetime'], inplace=True)
-
-    print('\n after merge: ', df_standardised.head())
 
 
     #####################
@@ -191,12 +189,10 @@ def engineer_features():
     # now drop lagged/rolled feature columns for sequential data and save this version
     ################
 
-    lag_roll_feat_cols = df.columns.difference(set(('hourly_usage_kwh', 'hour_sin', 'hour_cos', 'day_sin', 'day_cos', 'month_sin', 'month_cos', 'mean_usage')))
+    lag_roll_feat_cols = df_standardised.columns.difference(set(('hourly_usage_kwh', 'hour_sin', 'hour_cos', 'day_sin', 'day_cos', 'month_sin', 'month_cos', 'mean_usage')))
     df_train.drop(columns=lag_roll_feat_cols, inplace=True)
     df_validate.drop(columns=lag_roll_feat_cols, inplace=True)
     df_test.drop(columns=lag_roll_feat_cols, inplace=True)
-
-    print('\n cols in sequential: ', df_standardised.columns)
 
     # and save the data for sequential models
     with open(DATA_PATH / 'processed' / 'df_seq_train.pkl', 'wb') as f:
