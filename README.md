@@ -1,6 +1,63 @@
 ## Overwiew
 
-System to predict multi-client electricity demand, with a forecast horizon of 24 hours, and a context window of 1 week.
+System to predict multi-client electricity demand, with a 24 hour prediction horizon and 1 week historical context window.
+
+The project employs classical statistical, machine learning, and deep learning approaches to understand which methods perform best for multi-client time series data.
+
+## Approach
+
+- Implemented a naive baseline using seasonal lagged usage (1 hour, 1 day, 1 week)
+
+- Trained and evaluated:
+    - Linear models (OLS, Lasso)
+    - Tree-based models (XGBoost)
+    - Sequential deep learning model (LSTM, PyTorch)
+
+- Applied per-client normalisation to handle scale differences across clients
+
+- Engineered time-based features using cyclical encoding
+
+- Used lagged values and rolling statistics for non-sequential models
+ 
+- Performed time-based train/validation/test splits
+ 
+- Evaluated performance using client-mean-normalised RMSE (NRMSE)
+
+
+## Key Findings ##
+
+```
+MODEL           | mean NRMSE
+-----------------------------
+Naive (1wk lag) | 0.15
+LSTM            | 0.12
+Lasso           | 0.11
+OLS             | 0.10
+XGBoost         | 0.08
+```
+
+- Tree-based and linear models outperform the LSTM, despite the higher capacity of the latter
+
+- Lasso selects only three features (1-hour, 1-day, 1-week lags), indicating the problem is low-dimensional and strongly autoregressive
+
+- XGBoost captures nonlinear interactions, providing a modest improvement over linear models
+
+- Performance varies across clients. Those with highest coefficient of variation exhibit the largest errors,
+suggesting increased variance in usage increases forecasting difficulty
+
+
+These results suggest:
+
+- Most of the predictive signal is contained within a small selection of lag features
+
+- The problem is largely linearly autoregressive, limiting the benefit of deep learning sequence models
+
+
+
+## Per-client NRMSE distributions
+
+![Per-client NRMSE distribution](plots/client_error_histogram.png)
+
 
 ## Repository Structure
 
@@ -31,54 +88,13 @@ System to predict multi-client electricity demand, with a forecast horizon of 24
 
 ## Data ##
 
-The electricity usage data (for over 300 clients) is obtainable <a href=https://archive.ics.uci.edu/dataset/321/electricityloaddiagrams20112014>here</a>.
+The dataset (~300 clients) is obtainable here: https://archive.ics.uci.edu/dataset/321/electricityloaddiagrams20112014
 
 
-## Approach so far
+## Extensions
 
-- Naive baseline evaluated using lagged usage from prior hour and week. 
+- Anomaly detection for data cleansing and validation.
 
-- Linear models (OLS and Lasso), tree-based (XGBoost) and deep learning sequential (LSTM) models trained  evaluated
+- Hyperparameter tuning with Optuna.
 
-- Per client-normalisation upon input data, to ensure model pays equal attention to residential and industrial clients (whose magnitdue can be an order of magnitude different).
-
-- Cyclical encoding of time features. Linear and tree-based models also use lagged and rolling statistics
-
-- Evaluation performed using client-mean-normalised rmse
-
-
-## Results (preliminary) ##
-
-Client-mean normalised root mean square error (NRMSE) summary stats:
-
-```
-────────────────────────────────────────────────────
-MODEL           | mean NRMSE | max NRMSE | min NRMSE
-────────────────────────────────────────────────────
-Naive 1wk lag   | 0.15       | 0.66      | 0.04
-── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── 
-LSTM            | 0.12       | 0.72      | 0.02
-── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── 
-Lasso           | 0.11       | 0.65      | 0.02
-── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── 
-OLS             | 0.10       | 0.67      | 0.02
-── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── 
-XGBoost         | 0.08       | 0.46      | 0.02
-────────────────────────────────────────────────────
-```
-
-<br>
-
-Tree-based and linear models currently outpeform the deep learning model. This is because the problem
-is predominantly autoregressive. Linear models accounting for lag features can handle an autoregressive problem well (e.g., note in the Lasso implementation here, the only with coeffs not driven to zero are 1hr, 1dy and 1wk lag usages. Note similar performance to XGBoost).
-
-A small subset of clients drive a large portion of the nrmse
-
-
-## Next steps
-
-- Rule based approaches/anomaly detection for data cleansing, to improve scalability
-
-- Hyperparameter tuning with Optuna
-
-- Multi-timestep prediction
+- Multi-timestep forecasting (sequence-to-sequence models).
