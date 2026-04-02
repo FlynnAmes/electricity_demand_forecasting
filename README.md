@@ -23,6 +23,8 @@ The project employs classical statistical, machine learning, and deep learning a
  
 - Evaluated performance using client-mean-normalised RMSE (NRMSE)
 
+- Tuned XGBoost hyperparameters via Optuna
+
 
 ## Key Findings ##
 
@@ -40,10 +42,12 @@ XGBoost         | 0.08
 
 - Lasso selects only three features (1-hour, 1-day, 1-week lags), indicating the problem is low-dimensional and strongly autoregressive
 
-- XGBoost captures nonlinear interactions, providing a modest improvement over linear models
+- XGBoost captures nonlinear interactions, providing a modest improvement over linear models. 
 
 - Performance varies across clients. Those with highest coefficient of variation exhibit the largest errors,
 suggesting increased variance in usage increases forecasting difficulty
+
+- Hyperparameter tuning provided minimal performance gain, suggesting that features are informative. 
 
 
 These results suggest:
@@ -78,6 +82,7 @@ These results suggest:
 │   ├── prep_sequential.py
 │   ├── train_non_seq_models.py
 │   ├── train_LSTM.py
+│   ├── tune_XGBoost.py
 │   ├── evaluate_non_seq_models.py
 │   └── evaluate_LSTM.py
 │   
@@ -94,7 +99,5 @@ The dataset (~300 clients) is obtainable here: https://archive.ics.uci.edu/datas
 ## Extensions
 
 - Anomaly detection for data cleansing and validation.
-
-- Hyperparameter tuning with Optuna.
 
 - Multi-timestep forecasting (sequence-to-sequence models).
