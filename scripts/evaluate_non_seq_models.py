@@ -78,6 +78,9 @@ def evaluate_models():
         # if model is naive, do nothing, otherwise load in model from path  
         if 'naive' in path_name:
             model_name = path_name
+        # otherwise if not a file then skip
+        if os.path.isfile(path_name) is False:
+            continue
         else:       
             with open(path_name, 'rb') as f:
                 # get model name
@@ -103,7 +106,7 @@ def evaluate_models():
         # create frame with predictions and labels for given client id
         df_preds = pd.DataFrame(index=df_test.index, data={'y_pred': y_pred,
                                                         'y_true': y_test})
-        
+
         # now unscale the predictions and labels to get original units
         df_preds_unscaled = df_preds.groupby(level=
                                         'client_id').transform(lambda g: 

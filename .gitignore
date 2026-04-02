@@ -7,9 +7,6 @@ logs/
 # model artifacts
 models/
 
-# plots
-plots/
-
 # other temporary data
 __pycache__/
 *.egg-info
