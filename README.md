@@ -60,7 +60,7 @@ These results suggest:
 
 ## Per-client NRMSE distributions
 
-![Per-client NRMSE distribution](plots/client_error_histogram.png)
+![Per-client NRMSE distribution](figures/client_error_histogram.png)
 
 
 ## Repository Structure
