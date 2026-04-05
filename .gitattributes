@@ -1,1 +1,4 @@
 *.ipynb linguist-vendored
+
+# force line endings to be linux default
+* text=auto eol=lf
