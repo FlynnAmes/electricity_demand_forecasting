@@ -33,7 +33,10 @@ def engineer_features():
     random_seed = config['random_seed']
 
     # load in the data
-    df = pd.read_csv(str(DATA_PATH / 'processed' / 'hourly_usage_cleaned.csv'))
+    df = pd.read_csv(DATA_PATH / 'processed' / 'hourly_usage_cleaned.csv')
+
+    # convert the datetime to datetime again
+    df['datetime'] = pd.to_datetime(df['datetime'])
 
     # set datetime and client id as the index, but sort by datetime (for later timeseries split in sklearn)
     df.set_index(['client_id', 'datetime'], inplace=True)
@@ -43,7 +46,7 @@ def engineer_features():
     ############
     
     # extract the datetimes
-    datetimes = pd.to_datetime(df.index.get_level_values('datetime'))
+    datetimes = df.index.get_level_values('datetime')
 
     # split data into train, validation and holdout test, using split from config
     min_date = datetimes.min()
@@ -82,7 +85,7 @@ def engineer_features():
     ################
 
     # update to reflect datetimes in data subset
-    datetimes = pd.to_datetime(df_filtered.index.get_level_values('datetime'))
+    datetimes = df_filtered.index.get_level_values('datetime')
   
     # get mean and std hourly usage for each client using TRAINING DATA ONLY
     df_mean_std_usage = df_filtered[datetimes < validation_cutoff]['hourly_usage_kwh'].groupby(level='client_id').agg(['mean', 'std'])
