@@ -5,6 +5,8 @@ random_seed: 42
 training_loss: 'mean_squared_error'
 num_clients_train: 100
 random_seed: 42
+horizon: 24
+context_window: 168
 
 Lasso_params:
   alpha: 0.1
