@@ -82,7 +82,7 @@ def update_the_feature_array(initial_features_indexes, hour_index, col_idxs, X_t
     # then get data from preds
     data_from_preds = y_preds_array[:, :hour_index]
     # then combine
-    data_to_process = np.concat((data_from_target, data_from_preds), axis=-1)
+    data_to_process = np.concatenate((data_from_target, data_from_preds), axis=-1)
 
     # recompute lag features
     feature_array[:, col_idxs['lag_1hr']] = data_to_process[:, -1]
@@ -127,7 +127,6 @@ def get_forecast(model_object, X_test_array, y_test_array, initial_features_inde
         y_preds_array[:, hour_index] = model_object.predict(feature_array)
     
     return y_preds_array
-
 
 
 def evaluate_models():
