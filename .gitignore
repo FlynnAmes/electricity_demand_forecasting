@@ -10,3 +10,7 @@ models/
 # other temporary data
 __pycache__/
 *.egg-info
+
+# database files
+database/
+*.db
