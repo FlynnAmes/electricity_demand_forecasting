@@ -3,7 +3,7 @@
 -- 24 hour interval (different to cleaning required in inference!)
 
 
-CREATE OR REPLACE TABLE cleaned_hourly_usage AS (
+CREATE OR REPLACE TABLE cleaned_training_hourly_usages AS (
 -- CTE to melt the table, so that have a row for each timestamp and client id
 WITH melt_table AS (
 
@@ -77,4 +77,4 @@ ORDER BY client_id, recorded_at
 );
 
 -- and explort to parquet file
-COPY cleaned_hourly_usage TO '../data/processed/hourly_usage_cleaned.parquet'
+COPY cleaned_training_hourly_usages TO '../data/processed/hourly_usage_cleaned.parquet'

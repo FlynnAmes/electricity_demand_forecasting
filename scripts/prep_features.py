@@ -9,6 +9,7 @@ from paths import DATA_PATH, CONFIG_PATH, LOGS_PATH
 import json
 
 
+#TODO data leakage issue in rolling features ()should not include the current row!
 
 def standardise_per_client(group, dict_with_mean_and_std):
     """ standardise hourly usage data using mean and standard deviation for each client """
@@ -126,18 +127,18 @@ def engineer_features():
     df_standardised['lag_1wk'] = df_standardised.groupby(level='client_id')['hourly_usage_kwh'].shift(7*24)
 
     # get rolling mean features
-    df_standardised['rolling_mean_1dy'] = df_standardised.groupby(level='client_id')['hourly_usage_kwh'].transform(lambda x: x.rolling(window=24).mean())
-    df_standardised['rolling_mean_1wk'] = df_standardised.groupby(level='client_id')['hourly_usage_kwh'].transform(lambda x: x.rolling(window=24*7).mean())
+    df_standardised['rolling_mean_1dy'] = df_standardised.groupby(level='client_id')['hourly_usage_kwh'].transform(lambda x: x.shift(1).rolling(window=24).mean())
+    df_standardised['rolling_mean_1wk'] = df_standardised.groupby(level='client_id')['hourly_usage_kwh'].transform(lambda x: x.shift(1).rolling(window=24*7).mean())
 
     # get the rolling max, min and standard deviation (for volatility)
-    df_standardised['rolling_max_1dy'] = df_standardised.groupby(level='client_id')['hourly_usage_kwh'].transform(lambda x: x.rolling(window=24).max())
-    df_standardised['rolling_max_1wk'] = df_standardised.groupby(level='client_id')['hourly_usage_kwh'].transform(lambda x: x.rolling(window=24*7).max())
+    df_standardised['rolling_max_1dy'] = df_standardised.groupby(level='client_id')['hourly_usage_kwh'].transform(lambda x: x.shift(1).rolling(window=24).max())
+    df_standardised['rolling_max_1wk'] = df_standardised.groupby(level='client_id')['hourly_usage_kwh'].transform(lambda x: x.shift(1).rolling(window=24*7).max())
 
-    df_standardised['rolling_min_1dy'] = df_standardised.groupby(level='client_id')['hourly_usage_kwh'].transform(lambda x: x.rolling(window=24).min())
-    df_standardised['rolling_min_1wk'] = df_standardised.groupby(level='client_id')['hourly_usage_kwh'].transform(lambda x: x.rolling(window=24*7).min())
+    df_standardised['rolling_min_1dy'] = df_standardised.groupby(level='client_id')['hourly_usage_kwh'].transform(lambda x: x.shift(1).rolling(window=24).min())
+    df_standardised['rolling_min_1wk'] = df_standardised.groupby(level='client_id')['hourly_usage_kwh'].transform(lambda x: x.shift(1).rolling(window=24*7).min())
 
-    df_standardised['rolling_std_1dy'] = df_standardised.groupby(level='client_id')['hourly_usage_kwh'].transform(lambda x: x.rolling(window=24).std())
-    df_standardised['rolling_std_1wk'] = df_standardised.groupby(level='client_id')['hourly_usage_kwh'].transform(lambda x: x.rolling(window=24*7).std())
+    df_standardised['rolling_std_1dy'] = df_standardised.groupby(level='client_id')['hourly_usage_kwh'].transform(lambda x: x.shift(1).rolling(window=24).std())
+    df_standardised['rolling_std_1wk'] = df_standardised.groupby(level='client_id')['hourly_usage_kwh'].transform(lambda x: x.shift(1).rolling(window=24*7).std())
 
     print('\n new features created')
 
@@ -211,7 +212,7 @@ def engineer_features():
 
     # save the dictionary containing mean and standard deviation usage for each client
     with open(DATA_PATH / 'processed' / 'mean_std_per_client.json', 'w') as f:
-        json.dump(dict_mean_std_usage, f)
+        json.dump(dict_mean_std_usage, f, indent=4)
 
 
 if __name__ == '__main__':
