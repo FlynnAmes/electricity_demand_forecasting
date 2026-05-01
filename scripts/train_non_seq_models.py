@@ -6,6 +6,8 @@ import yaml
 from paths import DATA_PATH, MODELS_PATH, CONFIG_PATH
 from xgboost import XGBRegressor
 import os
+import pandas as pd
+import numpy as np
 
 
 def save_model(model_object, model_name: str):
@@ -18,6 +20,26 @@ def save_model(model_object, model_name: str):
     # then save 
     with open(MODELS_PATH / (model_name + '.pkl'), 'wb') as f:
         pkl.dump(model_object, f)
+
+
+def get_train_validation_data():
+
+    """ Load in the feature data and return the train, validation splits for features and target,
+     given specified training and validation sizes (as portion of total data).
+    Validation is performed on data later in time vs training etc."""
+
+    # load from parquet
+    df_train = pd.read_parquet(DATA_PATH / 'processed' / 'df_tabular_train.parquet').set_index(['client_id', 'target_time'])
+    df_validate = pd.read_parquet(DATA_PATH / 'processed' / 'df_tabular_validation.parquet').set_index(['client_id', 'target_time'])
+
+    # split into features ans target
+    X_train = df_train.drop(columns=['target_hourly_usage'])
+    X_validate = df_validate.drop(columns=['target_hourly_usage'])
+
+    y_train = df_train['target_hourly_usage']
+    y_validate = df_validate['target_hourly_usage']
+   
+    return X_train, X_validate, y_train, y_validate
 
 
 def train_non_seq_models():
@@ -36,20 +58,9 @@ def train_non_seq_models():
     # load data
     ############
 
-    # get the training and validation data (already standardised)
-    with open(DATA_PATH / 'processed' / 'df_tabular_train.pkl', 'rb') as f:
-        df_train = pkl.load(f)
+    X_train, X_validate, y_train, y_validate = get_train_validation_data()
 
-    with open(DATA_PATH / 'processed' / 'df_tabular_validate.pkl', 'rb') as f:
-        df_validate = pkl.load(f)
-
-    # seperate into features and target
-    X_train = df_train.drop(columns=['hourly_usage_kwh'])
-    X_validate = df_validate.drop(columns=['hourly_usage_kwh'])
-
-    y_train = df_train['hourly_usage_kwh']
-    y_validate = df_validate['hourly_usage_kwh']
-
+    print('train & validation split complete')
 
     # create dictionary of model objects (with hyperparameters specified)
     model_dict = {'OLS': LinearRegression(),

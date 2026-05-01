@@ -7,23 +7,24 @@ from paths import DATA_PATH, LOGS_PATH, FIGURES_PATH, CONFIG_PATH
 from sklearn.metrics import root_mean_squared_error
 import json
 import yaml
+import pandas as pd
 
 
 def get_dmatrices():
      
     # get the training and validation data (already standardised)
-    with open(DATA_PATH / 'processed' / 'df_tabular_train.pkl', 'rb') as f:
-        df_train = pkl.load(f)
 
-    with open(DATA_PATH / 'processed' / 'df_tabular_validate.pkl', 'rb') as f:
-        df_validate = pkl.load(f)
 
-    # seperate into features and target
-    X_train = df_train.drop(columns=['hourly_usage_kwh'])
-    X_validate = df_validate.drop(columns=['hourly_usage_kwh'])
+    # load from parquet
+    df_train = pd.read_parquet(DATA_PATH / 'processed' / 'df_tabular_train.parquet').set_index(['client_id', 'target_time'])
+    df_validate = pd.read_parquet(DATA_PATH / 'processed' / 'df_tabular_validation.parquet').set_index(['client_id', 'target_time'])
 
-    y_train = df_train['hourly_usage_kwh']
-    y_validate = df_validate['hourly_usage_kwh']
+    # split into features ans target
+    X_train = df_train.drop(columns=['target_hourly_usage'])
+    X_validate = df_validate.drop(columns=['target_hourly_usage'])
+
+    y_train = df_train['target_hourly_usage']
+    y_validate = df_validate['target_hourly_usage']
 
     # convert training and validation to native XGBoost DMatrix format
     d_train = xgb.DMatrix(X_train, label=y_train)

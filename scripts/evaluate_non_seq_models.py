@@ -11,13 +11,13 @@ from pathlib import Path
 import os
 
 
-def unscale_per_client(group, dict_with_mean_and_std):
+def unscale_per_client(group, df_with_mean_std_usage):
     """ use mean and std usage for each client to unscale data, ready for 
     evaluation """
 
     client_id = int(np.unique(group.index.get_level_values('client_id'))[0])
 
-    return ((group * dict_with_mean_and_std[client_id]['std']) + dict_with_mean_and_std[client_id]['mean'])
+    return ((group * df_with_mean_std_usage.loc[client_id, 'std_usage']) + df_with_mean_std_usage.loc[client_id, 'mean_usage'])
 
 
 def log_stats(model_name: str, nrmse_per_client, nrmse_summary_dict, df_preds):
@@ -41,28 +41,49 @@ def log_stats(model_name: str, nrmse_per_client, nrmse_summary_dict, df_preds):
         pkl.dump(df_preds, f)
 
 
+def get_test_data():
+
+    """ return the feature and target test data """
+
+    df = pd.read_parquet(DATA_PATH / 'processed' / 'df_tabular_test.parquet').set_index(['client_id', 'target_time'])
+
+    X_test = df.drop(columns=['target_hourly_usage'])
+    y_test = df['target_hourly_usage']
+
+    return X_test, y_test
+
+
 def evaluate_models():
 
     ############
     # load test data
     ############
 
-    with open(DATA_PATH / 'processed' / 'df_tabular_test.pkl', 'rb') as f:
-        df_test = pkl.load(f)
+    X_test, y_test = get_test_data()
 
-    # split into features and target
-    X_test = df_test.drop(columns=['hourly_usage_kwh'])
-    y_test = df_test['hourly_usage_kwh']
+    print('\n test data loaded')
+    # with open(DATA_PATH / 'processed' / 'df_tabular_test.pkl', 'rb') as f:
+    #     df_test = pkl.load(f)
+
+    # # split into features and target
+    # X_test = df_test.drop(columns=['hourly_usage_kwh'])
+    # y_test = df_test['hourly_usage_kwh']
 
     ############
     # load in mean and std usages for each client.
     ############
 
-    # for unscaling labels and predictions
-    with open(DATA_PATH / 'processed' / 'mean_std_per_client.json', 'r') as f:
-        df_std_mean_usage = pd.read_json(f).T
-        # create dictionary version for fast lookup
-        dict_std_mean_usage = df_std_mean_usage.to_dict(orient='index')
+    df_mean_std_usages = pd.read_json(DATA_PATH / 'processed' / 'mean_std_usages_per_client.json', lines=True).set_index('client_id')
+    # get clients used in data
+    clients_in_data = pd.read_json(DATA_PATH / 'processed' / 'client_subset_for_training.json', lines=True)
+    # ensure only left with mean and std usages used in data
+    df_mean_std_usages_for_data = df_mean_std_usages[df_mean_std_usages.index.isin(clients_in_data.to_numpy().squeeze())]
+    # print('\n', clients_in_data)
+    # # # for unscaling labels and predictions
+    # # with open(DATA_PATH / 'processed' / 'mean_std_per_client.json', 'r') as f:
+    # #     df_std_mean_usage = pd.read_json(f).T
+    # #     # create dictionary version for fast lookup
+    # #     dict_std_mean_usage = df_std_mean_usage.to_dict(orient='index')
 
 
     ##############
@@ -104,13 +125,13 @@ def evaluate_models():
 
 
         # create frame with predictions and labels for given client id
-        df_preds = pd.DataFrame(index=df_test.index, data={'y_pred': y_pred,
+        df_preds = pd.DataFrame(index=X_test.index, data={'y_pred': y_pred,
                                                         'y_true': y_test})
 
         # now unscale the predictions and labels to get original units
         df_preds_unscaled = df_preds.groupby(level=
                                         'client_id').transform(lambda g: 
-                                                                unscale_per_client(g, dict_std_mean_usage))
+                                                                unscale_per_client(g, df_mean_std_usages_for_data))
         
         # for each client compute the rmse
         rmse_per_client = df_preds_unscaled.groupby(level=
@@ -118,7 +139,7 @@ def evaluate_models():
                                                                             root_mean_squared_error(g['y_true'], g['y_pred']))
         
         # normalise rmse by mean usage to make comparable across clients
-        nrmse_per_client = rmse_per_client/df_std_mean_usage['mean']
+        nrmse_per_client = rmse_per_client/df_mean_std_usages_for_data['mean_usage']
 
         # create dict of summary stats
         summary_dict = {
