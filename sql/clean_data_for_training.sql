@@ -76,5 +76,83 @@ ORDER BY client_id, recorded_at
 
 );
 
+
 -- and explort to parquet file
-COPY cleaned_training_hourly_usages TO '../data/processed/hourly_usage_cleaned.parquet'
+COPY cleaned_training_hourly_usages TO '../data/processed/hourly_usage_cleaned.parquet';
+
+
+-- now create another set of data containing only clients present in both training and testing 
+-- periods (leeping simple here with simple time split)
+
+-- create table for invalid clients
+CREATE OR REPLACE TABLE invalid_clients (
+    client_id INTEGER
+);
+
+-- clients with bad data identified via visual inspection (would do this with rules based approach ideally)
+INSERT INTO invalid_clients (client_id)
+VALUES
+    ('196'),
+    ('362'),
+    ('279'),
+    ('093'),
+    ('223'),
+    ('003'),
+    ('223'),
+    ('003'),
+    ('332'),
+    ('347'),
+    ('001'),
+    ('131'),
+    ('015');
+
+-- get training and testing split dates
+WITH training_cutoff_date AS (
+    SELECT MIN(recorded_at) + TO_HOURS(CEIL(DATE_DIFF('HOURS', MIN(recorded_at), MAX(recorded_at))*0.7)::INTEGER) AS training_cutoff
+    FROM cleaned_training_hourly_usages
+), 
+
+-- note use of floor here, for conservative check
+testing_cutoff_date AS (
+    SELECT MIN(recorded_at) + TO_HOURS(FLOOR(DATE_DIFF('HOURS', MIN(recorded_at), MAX(recorded_at))*0.8)::INTEGER) AS training_cutoff
+    FROM cleaned_training_hourly_usages
+), 
+
+-- get min and max dates that have data for each client
+get_timeframe_of_data AS (
+    SELECT client_id,
+           MIN(recorded_at) as min_date,
+           MAX(recorded_at) as max_date
+    FROM cleaned_training_hourly_usages
+    GROUP BY client_id
+),
+
+-- get invalid clients, defined as those who are not present in both the training and testing splits
+get_invalid_clients AS (
+    SELECT client_id
+    FROM get_timeframe_of_data
+-- clients must have data in both the training and testing subsets (so that can test them!)
+    WHERE min_date > (SELECT * FROM training_cutoff_date) OR max_date < (SELECT * FROM testing_cutoff_date)
+)
+
+-- insert invalid clients into table
+INSERT INTO invalid_clients
+SELECT * FROM get_invalid_clients;
+
+-- create table with additional filter of valid clients (needed for training/testing)
+CREATE OR REPLACE TABLE cleaned_training_hourly_usages_valid_clients AS (
+    -- save data with valid clients as well as the clients deemed to be invalid
+    WITH remove_invalid_clients AS (
+
+        SELECT *
+        FROM cleaned_training_hourly_usages
+        WHERE client_id NOT IN (SELECT * FROM invalid_clients)
+
+    )
+
+    SELECT * FROM remove_invalid_clients
+);
+
+-- save to parquet files
+COPY hourly_usage_cleaned_valid_clients TO '../data/processed/hourly_usage_cleaned_valid_clients.parquet';
+COPY invalid_clients TO '../data/processed/invalid_clients.json';

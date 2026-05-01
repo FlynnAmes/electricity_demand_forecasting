@@ -1,12 +1,14 @@
 -- creates all features used for training data
 
+-- create a table with clients to omit
+
 
 CREATE OR REPLACE TABLE mean_std_usages AS (
 
 -- for now, hard code the train split for the data (will use dbt to input configuration parameters later)
 WITH training_cutoff_date AS (
     SELECT MIN(recorded_at) + TO_HOURS(CEIL(DATE_DIFF('HOURS', MIN(recorded_at), MAX(recorded_at))*0.7)::INTEGER) AS training_cutoff
-    FROM cleaned_training_hourly_usages
+    FROM cleaned_training_hourly_usages_valid_clients
 ),
 
 -- get mean and standard deviation of usages - use for normalisation later
@@ -15,7 +17,7 @@ get_mean_std_usages AS (
     SELECT client_id,
            AVG(hourly_usage) as mean_usage,
            STDDEV(hourly_usage) as std_usage
-    FROM   cleaned_training_hourly_usages
+    FROM   cleaned_training_hourly_usages_valid_clients
 -- making sure that only apply upon the training data!
     WHERE recorded_at < (SELECT * FROM training_cutoff_date)
     GROUP BY client_id 
@@ -35,7 +37,7 @@ CREATE OR REPLACE TABLE features_for_training AS (
             clh.recorded_at,
             (clh.hourly_usage - mean_usage)/std_usage as hourly_usage_normalised
         FROM 
-        cleaned_training_hourly_usages AS clh
+        cleaned_training_hourly_usages_valid_clients AS clh
         INNER JOIN mean_std_usages AS msu
         ON clh.client_id = msu.client_id
     ),
@@ -47,17 +49,18 @@ CREATE OR REPLACE TABLE features_for_training AS (
 
             SELECT clh.client_id,
                 clh.recorded_at as target_time,
+                clh.hourly_usage_normalised as target_hourly_usage,
 
         -- encode the time features
         -- hour
                 SIN(2*PI()*DATE_PART('HOUR', clh.recorded_at)/24) as hour_sin,
                 COS(2*PI()*DATE_PART('HOUR', clh.recorded_at)/24) as hour_cos,
         -- day of week
-                SIN(2*PI()*DATE_PART('WEEKDAY', clh.recorded_at)/7) as hour_day,
-                COS(2*PI()*DATE_PART('WEEKDAY', clh.recorded_at)/7) as hour_day,
+                SIN(2*PI()*DATE_PART('WEEKDAY', clh.recorded_at)/7) as day_sin,
+                COS(2*PI()*DATE_PART('WEEKDAY', clh.recorded_at)/7) as day_cos,
         -- month of year
-                SIN(2*PI()*DATE_PART('MONTH', clh.recorded_at)/7) as hour_month,
-                COS(2*PI()*DATE_PART('MONTH', clh.recorded_at)/7) as hour_month,
+                SIN(2*PI()*DATE_PART('MONTH', clh.recorded_at)/12) as month_sin,
+                COS(2*PI()*DATE_PART('MONTH', clh.recorded_at)/12) as month_cos,
 
 
         -- get lag features
@@ -140,7 +143,68 @@ COPY features_for_training TO '../data/processed/features_for_training.parquet';
 -- and also save the mean and std usages for each client
 COPY mean_std_usages TO '../data/processed/mean_std_usages_per_client.json';
 
--- SELECT * 
--- FROM compute_lag_rolling_features
--- LIMIT 170
 
+-- create random subset of clients (to manage computational cost)
+CREATE OR REPLACE TABLE clients_in_training AS (
+
+    WITH random_client_subset AS (
+
+        SELECT client_id
+    -- select from client ids only! (because feature data has many clients)
+    -- distinct doesn't guarantee same order so order clients in subquery, to ensure 
+    -- sample is same each time when using a fixed seed
+        FROM (SELECT DISTINCT client_id FROM features_for_training
+                    ORDER BY client_id)
+    -- hard code number of clients for now (will want to pass in from config!)
+        USING SAMPLE reservoir(100 ROWS)
+    -- assign random seed (again to be passed through as config parameter)
+        REPEATABLE (42)
+        ORDER BY client_id
+    )
+
+    SELECT * 
+    FROM random_client_subset
+);
+
+-- save the clients used in training to a json
+COPY clients_in_training TO '../data/processed/client_subset_for_training.json';
+
+------------
+-- split data into training, validation and testing
+------------
+
+-- create variables for the training and validation cutoff dates (so can then reference in later queries)
+
+-- get training split date
+SET VARIABLE  training_cutoff_date = (
+    SELECT MIN(recorded_at) + TO_HOURS(CEIL(DATE_DIFF('HOURS', MIN(recorded_at), MAX(recorded_at))*0.7)::INTEGER) AS training_cutoff
+    FROM cleaned_training_hourly_usages
+);
+
+-- get validation split date
+SET VARIABLE validation_cutoff_date = (
+    SELECT MIN(recorded_at) + TO_HOURS(CEIL(DATE_DIFF('HOURS', MIN(recorded_at), MAX(recorded_at))*0.8)::INTEGER) AS validation_cutoff
+    FROM cleaned_training_hourly_usages
+);
+
+-- split and save the training, validation and testing data
+
+-- training data
+COPY (
+   SELECT *
+   FROM features_for_training
+   WHERE target_time < getvariable('training_cutoff_date')
+   AND client_id IN (SELECT * FROM clients_in_training) ) TO '../data/processed/df_tabular_train.parquet';
+
+-- validation data
+COPY (SELECT *
+    FROM features_for_training
+    WHERE target_time > getvariable('training_cutoff_date')
+    AND target_time < getvariable('validation_cutoff_date')
+    AND client_id IN (SELECT * FROM clients_in_training) ) TO '../data/processed/df_tabular_validation.parquet';
+
+-- testing data
+COPY (SELECT *
+    FROM features_for_training
+    WHERE target_time > getvariable('validation_cutoff_date')
+    AND client_id IN (SELECT * FROM clients_in_training) ) TO '../data/processed/df_tabular_test.parquet';
