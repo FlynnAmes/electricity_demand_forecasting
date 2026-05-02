@@ -13,13 +13,25 @@ import os
 import yaml
 
 
-def unscale_per_client(group, dict_with_mean_and_std):
+def unscale_per_client(group, df_with_mean_std_usage):
     """ use mean and std usage for each client to unscale data, ready for 
     evaluation """
 
     client_id = int(np.unique(group.index.get_level_values('client_id'))[0])
 
-    return ((group * dict_with_mean_and_std[client_id]['std']) + dict_with_mean_and_std[client_id]['mean'])
+    return ((group * df_with_mean_std_usage.loc[client_id, 'std_usage']) + df_with_mean_std_usage.loc[client_id, 'mean_usage'])
+
+
+def get_test_data():
+
+    """ return the feature and target test data """
+
+    df = pd.read_parquet(DATA_PATH / 'processed' / 'df_tabular_test.parquet').set_index(['client_id', 'target_time'])
+
+    X_test = df.drop(columns=['target_hourly_usage'])
+    y_test = df['target_hourly_usage']
+
+    return X_test, y_test
 
 
 def log_stats(model_name: str, nrmse_per_client, nrmse_summary_dict, df_preds):
@@ -50,9 +62,9 @@ def remove_first_week_and_up_to_first_6am_before_last_5am(g):
 
     # first remove first week
     g_minus_1wk = g[168:]
-
+    # print(g.index.get_level_values('client_id').unique())
     # get min datetime that is 6am
-    datetimes = g_minus_1wk.index.get_level_values('datetime')
+    datetimes = g_minus_1wk.index.get_level_values('target_time')
     # client_id = g.index.get_level_values('client_id').unique()
     min_6am = np.min(datetimes[datetimes.hour == 6])
     max_6am = np.max(datetimes[datetimes.hour == 6])
@@ -61,7 +73,16 @@ def remove_first_week_and_up_to_first_6am_before_last_5am(g):
     idx_min_6am = g_minus_1wk.index.droplevel('client_id').get_loc(min_6am)
     idx_max_6am = g_minus_1wk.index.droplevel('client_id').get_loc(max_6am)
 
-    return g_minus_1wk.iloc[idx_min_6am:idx_max_6am]
+    if np.isnan(idx_max_6am).any() or np.isnan(idx_min_6am).any():
+        raise Exception(f'idx max is {idx_max_6am} and min {idx_min_6am} for client {g.index.get_level_values('client_id').unique()}')
+
+
+    if idx_min_6am > idx_max_6am:
+        print(g_minus_1wk.index.droplevel('client_id'))
+        print(idx_min_6am)
+        print(idx_max_6am)
+        raise Exception()
+    return g.iloc[idx_min_6am:idx_max_6am]
 
 
 
@@ -73,7 +94,7 @@ def update_the_feature_array(initial_features_indexes, hour_index, col_idxs, X_t
     # get exisiting feature values at each initial forecast step (using single step
     # engineered features as baseline) 
     feature_array = X_test_array[initial_features_indexes + hour_index, :]
-
+    
     # expand dims for indexes so can broadcast later when want range of indexes
     initial_features_indexes_2d = np.expand_dims(initial_features_indexes, axis=-1)
 
@@ -83,6 +104,10 @@ def update_the_feature_array(initial_features_indexes, hour_index, col_idxs, X_t
     data_from_preds = y_preds_array[:, :hour_index]
     # then combine
     data_to_process = np.concatenate((data_from_target, data_from_preds), axis=-1)
+
+    # # test to make sure that data to process is equivalent to week of data
+    # if data_to_process.shape[-1] != 168:
+    #     raise Exception(f'should have 1 weeks worth of hourly data instead, have {data_to_process.shape[-1]} rows')
 
     # recompute lag features
     feature_array[:, col_idxs['lag_1hr']] = data_to_process[:, -1]
@@ -122,9 +147,15 @@ def get_forecast(model_object, X_test_array, y_test_array, initial_features_inde
                                                     hour_index=hour_index, X_test_array=X_test_array, y_test_array=y_test_array, 
                                                     col_idxs=col_idxs, y_preds_array=y_preds_array,
                                                     context_window=context_window)
+            
+            if np.isnan(feature_array).any():
+                raise Exception('feature array contains nans')
         
         # update the predictions matrix
         y_preds_array[:, hour_index] = model_object.predict(feature_array)
+
+        if np.isnan(y_preds_array).any():
+                raise Exception('feature array contains nans')
     
     return y_preds_array
 
@@ -145,22 +176,31 @@ def evaluate_models():
     # load test data
     ############
 
-    with open(DATA_PATH / 'processed' / 'df_tabular_test.pkl', 'rb') as f:
-        df_test = pkl.load(f)
+    X_test, y_test = get_test_data()
 
-    # split into features and target
-    X_test = df_test.drop(columns=['hourly_usage_kwh'])
-    y_test = df_test['hourly_usage_kwh']
+    # X_test = X_test.sort_index(level=['client_id', 'target_time'])
+    # y_test = y_test.sort_index(level=['client_id', 'target_time'])
+
+    print(X_test.index.get_level_values('client_id').unique().shape)
+    print(y_test.index.get_level_values('client_id').unique().shape)
+    print('\n data loaded')
+
+    # check that all groups sorted by datetime in ascending order, otherwise raise exception
+    if ~X_test.groupby(level='client_id').apply(
+    lambda g: g.index.get_level_values('target_time').is_monotonic_increasing
+).any():
+        raise Exception('datetimes are not montonic increasing for at least one client')
+        
 
     ############
     # load in mean and std usages for each client.
     ############
 
-    # for unscaling labels and predictions
-    with open(DATA_PATH / 'processed' / 'mean_std_per_client.json', 'r') as f:
-        df_std_mean_usage = pd.read_json(f).T
-        # create dictionary version for fast lookup
-        dict_std_mean_usage = df_std_mean_usage.to_dict(orient='index')
+    df_mean_std_usages = pd.read_json(DATA_PATH / 'processed' / 'mean_std_usages_per_client.json', lines=True).set_index('client_id')
+    # get clients used in data
+    clients_in_data = pd.read_json(DATA_PATH / 'processed' / 'client_subset_for_training.json', lines=True)
+    # ensure only left with mean and std usages used in data
+    df_mean_std_usages_for_data = df_mean_std_usages[df_mean_std_usages.index.isin(clients_in_data.to_numpy().squeeze())]
     
     ##########
     # get indexes of predictions and columns, and convert to numpy
@@ -169,8 +209,9 @@ def evaluate_models():
     # get indexes for all timesteps (and correspinding client id) where a forecast prediction is to be made
     indexes_of_all_predictions = X_test.groupby(level='client_id').apply(lambda g: remove_first_week_and_up_to_first_6am_before_last_5am(g)).index.droplevel(0)
 
+    # print(indexes_of_all_predictions.get_level_values('client_id').unique().shape)
     # get datetimes (and corresponding client id) for starting step of each forecast horizon (i.e., 6am)
-    datetimes_forecast_start = indexes_of_all_predictions[indexes_of_all_predictions.get_level_values('datetime').hour == 6]
+    datetimes_forecast_start = indexes_of_all_predictions[indexes_of_all_predictions.get_level_values('target_time').hour == 6]
 
     # get the numeric index for starting step of each forecast
     initial_features_indexes = X_test.index.get_indexer(datetimes_forecast_start)
@@ -181,6 +222,8 @@ def evaluate_models():
     # get target values at the datetimes to be predicted
     y_test_at_predictions = y_test[y_test.index.isin(indexes_of_all_predictions)]
 
+    if np.isnan(y_test_at_predictions).any():
+        raise Exception('y true values have nans in them')
     # convert the test data to numpy
     X_test_array = X_test.to_numpy()
     y_test_array = y_test.to_numpy()
@@ -221,15 +264,20 @@ def evaluate_models():
         # now unscale the predictions and labels to get original units
         df_preds_unscaled = df_preds.groupby(level=
                                         'client_id').transform(lambda g: 
-                                                                unscale_per_client(g, dict_std_mean_usage))
-        
+                                                                unscale_per_client(g, df_mean_std_usages_for_data))
+    
         # for each client compute the rmse
         rmse_per_client = df_preds_unscaled.groupby(level=
                                                     'client_id').apply(lambda g: 
                                                                             root_mean_squared_error(g['y_true'], g['y_pred']))
         
+        if np.isnan(rmse_per_client).any():
+            raise Exception('rmse has nans')
         # normalise rmse by mean usage to make comparable across clients
-        nrmse_per_client = rmse_per_client/df_std_mean_usage['mean']
+        nrmse_per_client = rmse_per_client/df_mean_std_usages_for_data['mean_usage']
+
+        # print(y_test_at_predictions.index.get_level_values('client_id').unique().shape)
+        # print(df_mean_std_usages_for_data.index)
 
         # create dict of summary stats
         summary_dict = {

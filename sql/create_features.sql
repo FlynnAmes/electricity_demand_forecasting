@@ -194,17 +194,20 @@ COPY (
    SELECT *
    FROM features_for_training
    WHERE target_time < getvariable('training_cutoff_date')
-   AND client_id IN (SELECT * FROM clients_in_training) ) TO '../data/processed/df_tabular_train.parquet';
+   AND client_id IN (SELECT * FROM clients_in_training) 
+   ORDER BY client_id, target_time) TO '../data/processed/df_tabular_train.parquet';
 
 -- validation data
 COPY (SELECT *
     FROM features_for_training
     WHERE target_time > getvariable('training_cutoff_date')
     AND target_time < getvariable('validation_cutoff_date')
-    AND client_id IN (SELECT * FROM clients_in_training) ) TO '../data/processed/df_tabular_validation.parquet';
+    AND client_id IN (SELECT * FROM clients_in_training) 
+    ORDER BY client_id, target_time) TO '../data/processed/df_tabular_validation.parquet';
 
 -- testing data
 COPY (SELECT *
     FROM features_for_training
     WHERE target_time > getvariable('validation_cutoff_date')
-    AND client_id IN (SELECT * FROM clients_in_training) ) TO '../data/processed/df_tabular_test.parquet';
+    AND client_id IN (SELECT * FROM clients_in_training) 
+    ORDER BY client_id, target_time) TO '../data/processed/df_tabular_test.parquet';
