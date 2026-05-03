@@ -75,9 +75,6 @@ def evaluate_LSTM():
     # ensure only left with mean and std usages used in data
     df_mean_std_usages_for_data = df_std_mean_usage[df_std_mean_usage.index.isin(clients_in_data.to_numpy().squeeze())]
 
-    # print(clients_in_data.to_numpy().squeeze())
-    # print(clients_in_data)
-
     ############
     # instantiate model with trained weights and biases
     ############
@@ -132,7 +129,7 @@ def evaluate_LSTM():
             preds_dict[clients_ids_test_unique] += list(y_preds.detach().numpy().flatten())
             labels_dict[clients_ids_test_unique] += list(labels_test.detach().numpy().flatten())
         elif len(clients_ids_test_unique) == 2:
-
+     
             # need to split the data where client id changes
             # get the index of first instance of other client id
             index_of_change = np.where(client_ids_test == clients_ids_test_unique[1])[0][0]
@@ -149,9 +146,6 @@ def evaluate_LSTM():
     print('\n predictions obtained')
 
 
-    print(f'\n debug: {preds_dict.keys()}')
-    # print(f'\n debug: {labels_dict.keys()}')
-    # print(f'\n debug: {df_mean_std_usages_for_data.index}')
     # for each client, get scaled labels and predictions (using their mean and std usage)
     preds_dict_unscaled = {client_id: np.array(preds_dict[client_id]) * 
                         df_mean_std_usages_for_data.loc[client_id]['std_usage'] + df_mean_std_usages_for_data.loc[client_id]['mean_usage'] for client_id in preds_dict.keys()}

@@ -31,12 +31,17 @@ RANDOM_SEED = config['random_seed']
 for d in ['train', 'validation', 'test']:
 
     # loading in the training, validation and testing data
-    df = pd.read_parquet(DATA_PATH / 'processed' / f'df_tabular_{d}.parquet')
+    df = pd.read_parquet(DATA_PATH / 'processed' / f'df_tabular_{d}.parquet').set_index(['client_id', 'target_time'])
 
+    # test whether montonic increasing datetime for each group
+    # print(df.groupby('client_id')['target_time'].apply(lambda g: g.is_monotonic_increasing).any())
+    if ~df.groupby('client_id').apply(lambda g: g.index.get_level_values('target_time').is_monotonic_increasing).any():
+        raise Exception('in at least one group of clients, the datetime is not ordered so that monotonically increasing')
+    
     print('\n df loaded')
 
     # get client ids (for creating index maps later)
-    client_ids = df['client_id']
+    client_ids = df.index.get_level_values('client_id')
     client_ids_unique = client_ids.unique()
 
     print(f'\n {client_ids_unique}')
@@ -44,22 +49,26 @@ for d in ['train', 'validation', 'test']:
     # get all columns to drop (all except time encoding features)
     unwanted_cols = df.columns.difference(set(('target_hourly_usage', 'hour_sin', 'hour_cos', 'day_sin', 'day_cos', 'month_sin', 'month_cos', 'mean_usage')))
 
+    print('\n columns before dropping: ', df.columns)
     # drop the unwanted columns
     df.drop(columns=unwanted_cols, inplace=True)
 
     print('\n columns after dropping: ', df.columns)
-    # convert to tensor ready for PyTorch
-    data = torch.tensor(df.to_numpy(), dtype=torch.float32)
+    # # convert to tensor ready for PyTorch
+    # data = torch.tensor(df.to_numpy(), dtype=torch.float32)
 
-    print('\n tensor created')
+    # print('\n tensor created')
 
     ###################
     # Create data dicts and index maps
     ###################
 
-    # create dictionary with client id as key and corresponding data (tensor) as value
-    data_dict = {client_id: data[client_ids == client_id]
-                    for client_id in client_ids_unique}
+    # # create dictionary with client id as key and corresponding data (tensor) as value
+    # data_dict = {client_id: data[client_ids == client_id]
+    #                 for client_id in client_ids_unique}
+    
+    data_dict = {client_id: torch.tensor(group_df.to_numpy(), dtype=torch.float32) 
+                 for client_id, group_df in df.groupby(level='client_id')}
     
     print('\n data dictionary created')
 
@@ -72,6 +81,8 @@ for d in ['train', 'validation', 'test']:
 
     # total valid number starting indexes (and thus valid number of sequences) for each client
     tot_num_start_idx = [data.shape[0] - SEQ_LENGTH for client_id, data in data_dict.items()]
+
+    print(f'\n total number of starting indexes: ', tot_num_start_idx)
     
     if d == 'train':
         # for training data, use random stride to subsample data
