@@ -5,6 +5,7 @@ import torch
 import pickle as pkl
 import numpy as np
 import yaml
+import pandas as pd
 from paths import CONFIG_PATH, DATA_PATH
 
 
@@ -27,28 +28,41 @@ RANDOM_SEED = config['random_seed']
 # load and ready the training and validation data
 #######################
 
-for d in ['train', 'validate', 'test']:
+for d in ['train', 'validation', 'test']:
 
     # loading in the training, validation and testing data
-    with open(DATA_PATH / 'processed' / f'df_seq_{d}.pkl', 'rb') as f:
-        # load in dataframe
-        df = pkl.load(f)
-    
+    df = pd.read_parquet(DATA_PATH / 'processed' / f'df_tabular_{d}.parquet')
+
+    print('\n df loaded')
+
+    # get client ids (for creating index maps later)
+    client_ids = df['client_id']
+    client_ids_unique = client_ids.unique()
+
+    print(f'\n {client_ids_unique}')
+
+    # get all columns to drop (all except time encoding features)
+    unwanted_cols = df.columns.difference(set(('target_hourly_usage', 'hour_sin', 'hour_cos', 'day_sin', 'day_cos', 'month_sin', 'month_cos', 'mean_usage')))
+
+    # drop the unwanted columns
+    df.drop(columns=unwanted_cols, inplace=True)
+
+    print('\n columns after dropping: ', df.columns)
     # convert to tensor ready for PyTorch
     data = torch.tensor(df.to_numpy(), dtype=torch.float32)
+
+    print('\n tensor created')
 
     ###################
     # Create data dicts and index maps
     ###################
 
-    # get client ids
-    client_ids = df.index.get_level_values('client_id')
-    client_ids_unique = client_ids.unique()
-
     # create dictionary with client id as key and corresponding data (tensor) as value
     data_dict = {client_id: data[client_ids == client_id]
                     for client_id in client_ids_unique}
     
+    print('\n data dictionary created')
+
     ###############
     # and index maps for extracting data from dictionary
     ###############
@@ -63,7 +77,7 @@ for d in ['train', 'validate', 'test']:
         # for training data, use random stride to subsample data
         index_map = [(client_id, start_index) for i, client_id in enumerate(client_ids_unique)
                             for start_index in range(0, tot_num_start_idx[i], rng.integers(low=TRAIN_STRIDE_LOW, high=TRAIN_STRIDE_HIGH, size=1)[0])]
-    elif d == 'validate':
+    elif d == 'validation':
         # validation uses fixed stride
         index_map = [(client_id, start_index) for i, client_id in enumerate(client_ids_unique)
                             for start_index in range(0, tot_num_start_idx[i], VALIDATE_STRIDE)]

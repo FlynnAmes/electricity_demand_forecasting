@@ -62,12 +62,6 @@ def evaluate_models():
     X_test, y_test = get_test_data()
 
     print('\n test data loaded')
-    # with open(DATA_PATH / 'processed' / 'df_tabular_test.pkl', 'rb') as f:
-    #     df_test = pkl.load(f)
-
-    # # split into features and target
-    # X_test = df_test.drop(columns=['hourly_usage_kwh'])
-    # y_test = df_test['hourly_usage_kwh']
 
     ############
     # load in mean and std usages for each client.
@@ -78,13 +72,6 @@ def evaluate_models():
     clients_in_data = pd.read_json(DATA_PATH / 'processed' / 'client_subset_for_training.json', lines=True)
     # ensure only left with mean and std usages used in data
     df_mean_std_usages_for_data = df_mean_std_usages[df_mean_std_usages.index.isin(clients_in_data.to_numpy().squeeze())]
-    # print('\n', clients_in_data)
-    # # # for unscaling labels and predictions
-    # # with open(DATA_PATH / 'processed' / 'mean_std_per_client.json', 'r') as f:
-    # #     df_std_mean_usage = pd.read_json(f).T
-    # #     # create dictionary version for fast lookup
-    # #     dict_std_mean_usage = df_std_mean_usage.to_dict(orient='index')
-
 
     ##############
     # main evaluation loop
@@ -97,10 +84,10 @@ def evaluate_models():
         if 'LSTM' in path_name:
             continue
         # if model is naive, do nothing, otherwise load in model from path  
-        if 'naive' in path_name:
+        elif 'naive' in path_name:
             model_name = path_name
         # otherwise if not a file then skip
-        if os.path.isfile(path_name) is False:
+        elif os.path.isfile(path_name) is False:
             continue
         else:       
             with open(path_name, 'rb') as f:

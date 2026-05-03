@@ -62,7 +62,7 @@ def remove_first_week_and_up_to_first_6am_before_last_5am(g):
 
     # first remove first week
     g_minus_1wk = g[168:]
-    # print(g.index.get_level_values('client_id').unique())
+
     # get min datetime that is 6am
     datetimes = g_minus_1wk.index.get_level_values('target_time')
     # client_id = g.index.get_level_values('client_id').unique()
@@ -76,12 +76,6 @@ def remove_first_week_and_up_to_first_6am_before_last_5am(g):
     if np.isnan(idx_max_6am).any() or np.isnan(idx_min_6am).any():
         raise Exception(f'idx max is {idx_max_6am} and min {idx_min_6am} for client {g.index.get_level_values('client_id').unique()}')
 
-
-    if idx_min_6am > idx_max_6am:
-        print(g_minus_1wk.index.droplevel('client_id'))
-        print(idx_min_6am)
-        print(idx_max_6am)
-        raise Exception()
     return g.iloc[idx_min_6am:idx_max_6am]
 
 
@@ -104,10 +98,6 @@ def update_the_feature_array(initial_features_indexes, hour_index, col_idxs, X_t
     data_from_preds = y_preds_array[:, :hour_index]
     # then combine
     data_to_process = np.concatenate((data_from_target, data_from_preds), axis=-1)
-
-    # # test to make sure that data to process is equivalent to week of data
-    # if data_to_process.shape[-1] != 168:
-    #     raise Exception(f'should have 1 weeks worth of hourly data instead, have {data_to_process.shape[-1]} rows')
 
     # recompute lag features
     feature_array[:, col_idxs['lag_1hr']] = data_to_process[:, -1]
@@ -178,20 +168,12 @@ def evaluate_models():
 
     X_test, y_test = get_test_data()
 
-    # X_test = X_test.sort_index(level=['client_id', 'target_time'])
-    # y_test = y_test.sort_index(level=['client_id', 'target_time'])
-
-    print(X_test.index.get_level_values('client_id').unique().shape)
-    print(y_test.index.get_level_values('client_id').unique().shape)
     print('\n data loaded')
 
-    # check that all groups sorted by datetime in ascending order, otherwise raise exception
-    if ~X_test.groupby(level='client_id').apply(
-    lambda g: g.index.get_level_values('target_time').is_monotonic_increasing
-).any():
+    # test that all groups sorted by datetime in ascending order (neccesary for indexing into datetimes) otherwise raise exception
+    if ~X_test.groupby(level='client_id').apply(lambda g: g.index.get_level_values('target_time').is_monotonic_increasing).any():
         raise Exception('datetimes are not montonic increasing for at least one client')
         
-
     ############
     # load in mean and std usages for each client.
     ############
@@ -209,7 +191,6 @@ def evaluate_models():
     # get indexes for all timesteps (and correspinding client id) where a forecast prediction is to be made
     indexes_of_all_predictions = X_test.groupby(level='client_id').apply(lambda g: remove_first_week_and_up_to_first_6am_before_last_5am(g)).index.droplevel(0)
 
-    # print(indexes_of_all_predictions.get_level_values('client_id').unique().shape)
     # get datetimes (and corresponding client id) for starting step of each forecast horizon (i.e., 6am)
     datetimes_forecast_start = indexes_of_all_predictions[indexes_of_all_predictions.get_level_values('target_time').hour == 6]
 
@@ -271,13 +252,13 @@ def evaluate_models():
                                                     'client_id').apply(lambda g: 
                                                                             root_mean_squared_error(g['y_true'], g['y_pred']))
         
+        # test to make sure that rmse does not contain nans
         if np.isnan(rmse_per_client).any():
             raise Exception('rmse has nans')
+        
         # normalise rmse by mean usage to make comparable across clients
         nrmse_per_client = rmse_per_client/df_mean_std_usages_for_data['mean_usage']
 
-        # print(y_test_at_predictions.index.get_level_values('client_id').unique().shape)
-        # print(df_mean_std_usages_for_data.index)
 
         # create dict of summary stats
         summary_dict = {

@@ -1,6 +1,5 @@
 """ evaluate performance of LSTM deep learning model """
 
-import torch
 from torch.utils.data import DataLoader
 import pandas as pd
 import pickle as pkl
@@ -14,13 +13,13 @@ from collections import defaultdict
 from classes import LSTMNoEmbed, SeqExtractionDataSet
 
 
-def unscale_per_client(group, dict_with_mean_and_std):
+def unscale_per_client(group, df_with_mean_std_usage):
     """ use mean and std usage for each client to unscale data, ready for 
     evaluation """
 
     client_id = int(np.unique(group.index.get_level_values('client_id'))[0])
 
-    return ((group * dict_with_mean_and_std[client_id]['std']) + dict_with_mean_and_std[client_id]['mean'])
+    return ((group * df_with_mean_std_usage.loc[client_id, 'std_usage']) + df_with_mean_std_usage.loc[client_id, 'mean_usage'])
 
 
 def log_stats(model_name: str, nrmse_per_client, nrmse_summary_dict, preds_dict):
@@ -69,11 +68,15 @@ def evaluate_LSTM():
     # load in mean and std usages for each client, for unscaling data
     ############
 
-    # for unscaling labels and predictions
-    with open(DATA_PATH / 'processed' / 'mean_std_per_client.json', 'r') as f:
-        df_std_mean_usage = pd.read_json(f).T
-        # create dictionary version for fast lookup
-        dict_std_mean_usage = df_std_mean_usage.to_dict(orient='index')
+    # load in json with mean/std usage as a dataframe
+    df_std_mean_usage = pd.read_json(DATA_PATH / 'processed' / 'mean_std_usages_per_client.json', lines=True).set_index('client_id')
+    # get clients used in data
+    clients_in_data = pd.read_json(DATA_PATH / 'processed' / 'client_subset_for_training.json', lines=True)
+    # ensure only left with mean and std usages used in data
+    df_mean_std_usages_for_data = df_std_mean_usage[df_std_mean_usage.index.isin(clients_in_data.to_numpy().squeeze())]
+
+    # print(clients_in_data.to_numpy().squeeze())
+    # print(clients_in_data)
 
     ############
     # instantiate model with trained weights and biases
@@ -145,11 +148,15 @@ def evaluate_LSTM():
 
     print('\n predictions obtained')
 
+
+    print(f'\n debug: {preds_dict.keys()}')
+    # print(f'\n debug: {labels_dict.keys()}')
+    # print(f'\n debug: {df_mean_std_usages_for_data.index}')
     # for each client, get scaled labels and predictions (using their mean and std usage)
     preds_dict_unscaled = {client_id: np.array(preds_dict[client_id]) * 
-                        dict_std_mean_usage[client_id]['std'] + dict_std_mean_usage[client_id]['mean'] for client_id in preds_dict.keys()}
+                        df_mean_std_usages_for_data.loc[client_id]['std_usage'] + df_mean_std_usages_for_data.loc[client_id]['mean_usage'] for client_id in preds_dict.keys()}
     labels_dict_unscaled = {client_id: np.array(labels_dict[client_id]) * 
-                            dict_std_mean_usage[client_id]['std'] + dict_std_mean_usage[client_id]['mean'] for client_id in labels_dict.keys()}
+                            df_mean_std_usages_for_data.loc[client_id]['std_usage'] + df_mean_std_usages_for_data.loc[client_id]['mean_usage'] for client_id in labels_dict.keys()}
 
     # and compute the mean usage for each client
     mean_usages = {client_id: labels_dict_unscaled[client_id].mean() for client_id in labels_dict.keys()}

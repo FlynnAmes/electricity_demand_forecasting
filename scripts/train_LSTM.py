@@ -9,6 +9,7 @@ import numpy as np
 import yaml
 from paths import CONFIG_PATH, DATA_PATH, BASE_PATH, MODELS_PATH
 from classes import SeqExtractionDataSet, LSTMNoEmbed, ConvergenceTracker
+import os
 
 
 ##############
@@ -40,14 +41,14 @@ def train_LSTM():
     with open(DATA_PATH / 'processed' / 'seq_data_dict_train', 'rb') as f:
         data_dict_train = pkl.load(f)
 
-    with open(DATA_PATH / 'processed' / 'seq_data_dict_validate', 'rb') as f:
+    with open(DATA_PATH / 'processed' / 'seq_data_dict_validation', 'rb') as f:
         data_dict_validate = pkl.load(f)
 
     # index maps
     with open(DATA_PATH / 'processed' / 'idx_map_train', 'rb') as f:
         idx_map_train = pkl.load(f)
 
-    with open(DATA_PATH / 'processed' / 'idx_map_validate', 'rb') as f:
+    with open(DATA_PATH / 'processed' / 'idx_map_validation', 'rb') as f:
         idx_map_validate = pkl.load(f)
 
     ##################
@@ -80,6 +81,9 @@ def train_LSTM():
 
     # create instance of early stopping class
     convergence_tracker = ConvergenceTracker(patience=PATIENCE, delta=DELTA)
+
+    # create directory for checkpoints if not yet exists
+    os.makedirs(MODELS_PATH / 'checkpoints', exist_ok=True)
 
     ###########
     # main training loop

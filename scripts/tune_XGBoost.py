@@ -14,7 +14,6 @@ def get_dmatrices():
      
     # get the training and validation data (already standardised)
 
-
     # load from parquet
     df_train = pd.read_parquet(DATA_PATH / 'processed' / 'df_tabular_train.parquet').set_index(['client_id', 'target_time'])
     df_validate = pd.read_parquet(DATA_PATH / 'processed' / 'df_tabular_validation.parquet').set_index(['client_id', 'target_time'])
