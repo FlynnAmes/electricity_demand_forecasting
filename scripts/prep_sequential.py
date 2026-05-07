@@ -49,24 +49,16 @@ for d in ['train', 'validation', 'test']:
     # get all columns to drop (all except time encoding features)
     unwanted_cols = df.columns.difference(set(('target_hourly_usage', 'hour_sin', 'hour_cos', 'day_sin', 'day_cos', 'month_sin', 'month_cos', 'mean_usage')))
 
-    print('\n columns before dropping: ', df.columns)
     # drop the unwanted columns
     df.drop(columns=unwanted_cols, inplace=True)
 
     print('\n columns after dropping: ', df.columns)
-    # # convert to tensor ready for PyTorch
-    # data = torch.tensor(df.to_numpy(), dtype=torch.float32)
-
-    # print('\n tensor created')
 
     ###################
     # Create data dicts and index maps
     ###################
-
-    # # create dictionary with client id as key and corresponding data (tensor) as value
-    # data_dict = {client_id: data[client_ids == client_id]
-    #                 for client_id in client_ids_unique}
     
+    # get data for each client, convert to tensor and put into dictionary
     data_dict = {client_id: torch.tensor(group_df.to_numpy(), dtype=torch.float32) 
                  for client_id, group_df in df.groupby(level='client_id')}
     
@@ -81,8 +73,6 @@ for d in ['train', 'validation', 'test']:
 
     # total valid number starting indexes (and thus valid number of sequences) for each client
     tot_num_start_idx = [data.shape[0] - SEQ_LENGTH for client_id, data in data_dict.items()]
-
-    print(f'\n total number of starting indexes: ', tot_num_start_idx)
     
     if d == 'train':
         # for training data, use random stride to subsample data

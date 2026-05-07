@@ -15,11 +15,13 @@ The project employs classical statistical, machine learning, and deep learning a
 
 - Applied per-client normalisation to handle scale differences across clients
 
-- Engineered time-based features using cyclical encoding
+- Engineered time-based features using cyclical encoding.
 
 - Used lagged values and rolling statistics for non-sequential models
  
 - Performed time-based train/validation/test splits
+
+- Preprocessing and feature engineering (for non-sequential models) in SQL. Training and evaluation in Python.
  
 - Evaluated performance using client-mean-normalised RMSE (NRMSE)
 
@@ -32,7 +34,7 @@ The project employs classical statistical, machine learning, and deep learning a
 MODEL           | mean NRMSE
 -----------------------------
 Naive (1wk lag) | 0.15
-LSTM            | 0.12
+LSTM            | 0.14
 Lasso           | 0.11
 OLS             | 0.10
 XGBoost         | 0.08
@@ -69,6 +71,8 @@ These results suggest:
 ├── data/
 │   ├── processed/
 │   └── raw/   
+│
+├── database/                      # contains DuckDb database (gitignored)
 │  
 ├── logs/                          # training and evaluation logs (gitignored)
 ├── models/                        # trained model artifacts (gitignored)
@@ -77,27 +81,24 @@ These results suggest:
 ├── scripts/                       # training and evaluation code
 │   ├── classes.py
 │   ├── paths.py
-│   ├── clean_data.py
-│   ├── prep_features.py
 │   ├── prep_sequential.py
 │   ├── train_non_seq_models.py
 │   ├── train_LSTM.py
 │   ├── tune_XGBoost.py
 │   ├── evaluate_non_seq_models.py
 │   └── evaluate_LSTM.py
-│   
+│ 
+├── sql/
+│   ├── 001_create_initial_tables.sql
+│   ├── clean_data_for_training.sql
+│   ├── create_features.sql
+│
 ├── config.yml
 ├── .gitignore
+├── .gitattributes
 └──  README.md
 ```
 
 ## Data ##
 
 The dataset (~300 clients) is obtainable here: https://archive.ics.uci.edu/dataset/321/electricityloaddiagrams20112014
-
-
-## Extensions
-
-- Anomaly detection for data cleansing and validation.
-
-- Multi-timestep forecasting (sequence-to-sequence models).
