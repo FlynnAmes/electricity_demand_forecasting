@@ -88,7 +88,7 @@ These results suggest:
 │   ├── evaluate_non_seq_models.py
 │   └── evaluate_LSTM.py
 │ 
-├── sql/
+├── sql/                            # data cleaning and feature engineering code
 │   ├── 001_create_initial_tables.sql
 │   ├── clean_data_for_training.sql
 │   ├── create_features.sql
